@@ -76,6 +76,7 @@ const STRINGS = {
     install_btn: 'Instalar',
     install_ios_safari: 'Toca Compartir y luego "Agregar a Inicio" para instalar en tu iPhone.',
     install_ios_chrome: 'Para instalar en iPhone, abre este enlace en Safari.',
+    install_android_fallback: 'Toca el menú (⋮) de Chrome y luego "Instalar aplicación".',
     install_dismiss: 'Cerrar',
   },
   en: {
@@ -146,6 +147,7 @@ const STRINGS = {
     install_btn: 'Install',
     install_ios_safari: 'Tap Share then "Add to Home Screen" to install on your iPhone.',
     install_ios_chrome: 'To install on iPhone, open this link in Safari.',
+    install_android_fallback: 'Tap the Chrome menu (⋮) then "Install app".',
     install_dismiss: 'Dismiss',
   },
 };
@@ -491,6 +493,7 @@ export default function DominoScorekeeper() {
 
 // =================== INSTALL BANNER ===================
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isAndroid = () => /Android/.test(navigator.userAgent);
 const isStandalone = () =>
   (typeof window !== 'undefined') &&
   (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
@@ -503,8 +506,9 @@ function InstallBanner({ t }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   useEffect(() => {
+    // Session-only dismissal: reload or new tab brings the banner back.
     try {
-      if (localStorage.getItem('install-dismissed') === '1') setDismissed(true);
+      if (sessionStorage.getItem('install-dismissed') === '1') setDismissed(true);
     } catch (e) {}
     const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
@@ -519,7 +523,7 @@ function InstallBanner({ t }) {
   if (dismissed || isStandalone()) return null;
 
   const dismiss = () => {
-    try { localStorage.setItem('install-dismissed', '1'); } catch (e) {}
+    try { sessionStorage.setItem('install-dismissed', '1'); } catch (e) {}
     setDismissed(true);
   };
 
@@ -531,23 +535,27 @@ function InstallBanner({ t }) {
   };
 
   const ios = isIOS();
+  const android = isAndroid();
   const safariIOS = isSafariIOS();
-  const showAndroid = !!deferredPrompt;
+  const showAndroidPrompt = !!deferredPrompt;
+  const showAndroidFallback = android && !deferredPrompt;
   const showSafariHint = ios && safariIOS;
   const showChromeIOSHint = ios && !safariIOS;
 
-  if (!showAndroid && !showSafariHint && !showChromeIOSHint) return null;
+  if (!showAndroidPrompt && !showAndroidFallback && !showSafariHint && !showChromeIOSHint) return null;
+
+  const hint = showSafariHint ? t.install_ios_safari
+    : showChromeIOSHint ? t.install_ios_chrome
+    : showAndroidFallback ? t.install_android_fallback
+    : '';
 
   return (
     <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: C.amberLight, borderBottom: `1px solid ${C.amber}`, color: C.text }}>
       <div className="flex-1 text-xs" style={{ lineHeight: 1.3 }}>
         <div className="font-bold mb-0.5" style={{ color: C.text }}>{t.install_title}</div>
-        <div style={{ color: C.textLight }}>
-          {showSafariHint && t.install_ios_safari}
-          {showChromeIOSHint && t.install_ios_chrome}
-        </div>
+        {hint && <div style={{ color: C.textLight }}>{hint}</div>}
       </div>
-      {showAndroid && (
+      {showAndroidPrompt && (
         <button onClick={handleInstall} className="px-3 py-1.5 rounded font-bold text-xs active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
           {t.install_btn}
         </button>
