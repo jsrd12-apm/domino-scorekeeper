@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 const BUILD_DATE = (typeof process !== 'undefined' && process.env && process.env.BUILD_DATE) || '';
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -96,6 +96,10 @@ const STRINGS = {
     view_previous: 'Ver Anteriores',
     saved_short: 'Guardado',
     no_rounds_save: 'No hay jugadas para guardar.',
+    confirm_new_title: '¿Empezar un juego nuevo?',
+    confirm_new_in_progress: 'jugadas en curso',
+    save_and_new: 'Guardar y empezar nuevo',
+    discard_and_new: 'Empezar sin guardar',
   },
   en: {
     new: 'New',
@@ -184,6 +188,10 @@ const STRINGS = {
     view_previous: 'View Previous',
     saved_short: 'Saved',
     no_rounds_save: 'No rounds to save.',
+    confirm_new_title: 'Start a new game?',
+    confirm_new_in_progress: 'rounds in progress',
+    save_and_new: 'Save and start new',
+    discard_and_new: 'Start without saving',
   },
 };
 
@@ -251,6 +259,7 @@ export default function DominoScorekeeper() {
   const [shareStatus, setShareStatus] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [confirmingNew, setConfirmingNew] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const t = STRINGS[state.lang];
@@ -374,17 +383,27 @@ export default function DominoScorekeeper() {
     }));
   };
 
-  const newGame = () => {
-    if (state.rounds.length === 0) return;
-    if (winner && window.confirm(t.save_q)) {
-      saveCurrentToHistory();
-    } else if (!window.confirm(t.new_q)) {
-      return;
-    }
+  const resetGame = () => {
     setState((s) => ({ ...s, rounds: [] }));
     setScoreA('');
     setScoreB('');
     clearPendingBonus();
+  };
+
+  const newGame = () => {
+    if (state.rounds.length === 0) return;
+    setConfirmingNew(true);
+  };
+
+  const handleSaveAndNew = () => {
+    saveCurrentToHistory();
+    resetGame();
+    setConfirmingNew(false);
+  };
+
+  const handleDiscardAndNew = () => {
+    resetGame();
+    setConfirmingNew(false);
   };
 
   const saveCurrentToHistory = () => {
@@ -579,6 +598,16 @@ export default function DominoScorekeeper() {
           <HistoryView t={t} state={state} history={history} onDelete={deleteHistoryGame} onClose={() => setView('game')} />
         )}
       </div>
+
+      {confirmingNew && (
+        <NewGameModal
+          t={t}
+          roundCount={state.rounds.length}
+          onSaveAndNew={handleSaveAndNew}
+          onDiscardAndNew={handleDiscardAndNew}
+          onCancel={() => setConfirmingNew(false)}
+        />
+      )}
 
       {editingRound !== null && (
         <EditRoundModal
@@ -993,6 +1022,45 @@ function ScoreBox({ value, onChange, onEnter, accent, pendingBonus, pasoValue, o
           +{totalBonus}{pendingBonus > 1 ? ` ×${pendingBonus}` : ''} <X size={9} />
         </button>
       )}
+    </div>
+  );
+}
+
+// =================== NEW GAME MODAL ===================
+function NewGameModal({ t, roundCount, onSaveAndNew, onDiscardAndNew, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: 'white' }}>
+        <h3 className="text-lg font-bold mb-1 text-center" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.05em' }}>
+          {t.confirm_new_title}
+        </h3>
+        <p className="text-xs mb-4 text-center" style={{ color: C.textLight }}>
+          {roundCount} {t.confirm_new_in_progress}
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={onSaveAndNew}
+            className="py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition"
+            style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+          >
+            <Save size={16} /> {t.save_and_new}
+          </button>
+          <button
+            onClick={onDiscardAndNew}
+            className="py-3 rounded-lg font-bold text-sm active:scale-95 transition"
+            style={{ background: 'white', color: C.red, border: `2px solid ${C.red}`, fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+          >
+            {t.discard_and_new}
+          </button>
+          <button
+            onClick={onCancel}
+            className="py-2 rounded-lg font-medium text-sm active:scale-95 transition"
+            style={{ background: 'white', color: C.textLight, border: `1px solid ${C.border}` }}
+          >
+            {t.cancel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
