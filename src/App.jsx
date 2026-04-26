@@ -3,6 +3,7 @@ import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLe
 
 // ==== Edit these defaults before deploying ====
 const APP_VERSION = '1.0';
+const BUILD_DATE = (typeof process !== 'undefined' && process.env && process.env.BUILD_DATE) || '';
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
 // ==============================================
@@ -449,32 +450,22 @@ export default function DominoScorekeeper() {
     if (updating) return;
     setUpdating(true);
     try {
-      if (!('serviceWorker' in navigator)) {
-        setUpdating(false);
-        alert(t.update_failed);
-        return;
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+          if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          // Give the SW a moment to install/activate
+          await new Promise((r) => setTimeout(r, 1200));
+        }
       }
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) {
-        setUpdating(false);
-        alert(t.update_failed);
-        return;
-      }
-      await reg.update();
-      // Brief wait for new SW install to begin
-      await new Promise((r) => setTimeout(r, 1500));
-      if (reg.waiting || reg.installing) {
-        // A new version is installing/waiting — reload to use it
-        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
-        return;
-      }
-      setUpdating(false);
-      alert(t.up_to_date);
-    } catch (e) {
-      setUpdating(false);
-      alert(t.update_failed);
-    }
+    } catch (e) {}
+    // Always reload — the active SW will serve the latest cached assets.
+    // Cache-busting query string forces the navigation to bypass any
+    // intermediate HTTP cache; the SW still answers fetches normally.
+    const url = new URL(window.location.href);
+    url.searchParams.set('_v', Date.now().toString(36));
+    window.location.replace(url.toString());
   };
 
   return (
@@ -877,7 +868,7 @@ function GameView(p) {
 
       {/* Version + check for updates footer */}
       <div className="text-center mt-3 text-[10px]" style={{ color: C.textLight }}>
-        v{APP_VERSION}
+        v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
         {' · '}
         <button
           onClick={checkForUpdates}
@@ -1233,7 +1224,7 @@ function AboutView({ t, state, onClose }) {
         <div className="text-xs mb-1" style={{ color: C.textLight }}>{t.created_by}</div>
         <div className="text-base font-bold" style={{ color: C.blue }}>{state.creator}</div>
         <div className="text-[10px] mt-2 tracking-widest" style={{ color: C.textLight }}>
-          {t.version} {APP_VERSION}
+          {t.version} {APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
         </div>
       </div>
     </div>
