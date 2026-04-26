@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.0.8';
 const BUILD_DATE = (typeof process !== 'undefined' && process.env && process.env.BUILD_DATE) || '';
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -1261,16 +1261,16 @@ function HistoryView({ t, state, history, onDelete, onClose }) {
 
 function HistoryCard({ game, t, onDelete, onOpen }) {
   const date = new Date(game.date);
-  const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dateStr = formatUSDateTime(date);
   const aWon = game.winner === game.teamA.name;
   return (
     <div className="p-3 rounded-lg shadow-sm" style={{ background: 'white', border: `1px solid ${C.border}` }}>
       <div className="flex items-start justify-between mb-2">
-        <button onClick={onOpen} className="text-xs tracking-wider font-medium active:opacity-70" style={{ color: C.textLight }}>
+        <button onClick={onOpen} className="text-sm font-semibold tracking-wide active:opacity-70" style={{ color: C.blue }}>
           {dateStr}
         </button>
-        <button onClick={onDelete} className="opacity-50 active:scale-90 transition" style={{ color: C.red }}>
-          <Trash2 size={14} />
+        <button onClick={onDelete} className="opacity-60 active:scale-90 transition" style={{ color: C.red }}>
+          <Trash2 size={16} />
         </button>
       </div>
       <button onClick={onOpen} className="w-full grid grid-cols-2 gap-2 active:opacity-80">
@@ -1347,7 +1347,7 @@ function HistoryDetail({ game, t, state, onBack }) {
       <button onClick={onBack} className="flex items-center gap-1 mb-3 text-sm font-semibold active:scale-95 transition" style={{ color: C.blue }}>
         <ChevronLeft size={16} /> {t.back}
       </button>
-      <div className="text-xs text-center mb-2" style={{ color: C.textLight }}>{date.toLocaleString()}</div>
+      <div className="text-sm font-semibold text-center mb-2" style={{ color: C.blue }}>{formatUSDateTime(date)}</div>
 
       <div className="grid grid-cols-2 gap-2 mb-3">
         <TeamSummary team={game.teamA} total={game.totalA} accent={C.red} isWinner={aWon} />
@@ -1397,39 +1397,64 @@ function HistoryDetail({ game, t, state, onBack }) {
 }
 
 // =================== TEXT EXPORT ===================
+function formatUSDateTime(date) {
+  const d = (date instanceof Date) ? date : new Date(date);
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const yy = String(d.getFullYear()).slice(-2);
+  let h = d.getHours();
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${m}/${day}/${yy} ${h}:${min} ${ampm}`;
+}
+
 function formatGameAsText(game, t) {
-  const date = new Date(game.date).toLocaleString();
   const lines = [];
-  lines.push('================================');
-  lines.push('   DOMINÓ - ' + (t.game_export_subject || 'Game'));
-  lines.push('================================');
-  lines.push(date);
+  const players = (team) => [team.p1, team.p2].filter(Boolean).join(', ');
+  const cell = (main, bonus, count) => {
+    let s = String(main || 0);
+    if (bonus) s += ' +' + bonus + (count > 1 ? '×' + count : '');
+    return s;
+  };
+
+  lines.push('==================================');
+  lines.push('       DOMINO - ' + (t.game_export_subject || 'Game'));
+  lines.push('==================================');
+  lines.push('Fecha: ' + formatUSDateTime(new Date(game.date)));
   lines.push('');
+
+  // Teams + players + final totals
   lines.push(game.teamA.name + ': ' + game.totalA);
-  if (game.teamA.p1 || game.teamA.p2) {
-    lines.push('  ' + [game.teamA.p1, game.teamA.p2].filter(Boolean).join(' · '));
-  }
+  if (players(game.teamA)) lines.push('  ' + players(game.teamA));
   lines.push('');
   lines.push(game.teamB.name + ': ' + game.totalB);
-  if (game.teamB.p1 || game.teamB.p2) {
-    lines.push('  ' + [game.teamB.p1, game.teamB.p2].filter(Boolean).join(' · '));
-  }
+  if (players(game.teamB)) lines.push('  ' + players(game.teamB));
   lines.push('');
+
   if (game.winner) {
-    lines.push(t.winner.toUpperCase() + ': ' + game.winner);
+    lines.push('>> ' + (t.winner ? t.winner.toUpperCase() : 'WINNER') + ': ' + game.winner + ' <<');
     lines.push('');
   }
-  lines.push('--- ' + t.rounds_word.toUpperCase() + ' ---');
+
+  // Rounds table with column headers
+  lines.push('--- ' + (t.rounds_word ? t.rounds_word.toUpperCase() : 'ROUNDS') + ' ---');
+  const colA = game.teamA.name.slice(0, 14);
+  const colB = game.teamB.name.slice(0, 14);
+  lines.push('       ' + colA.padEnd(16) + colB);
+  lines.push('       ' + '-'.repeat(colA.length) + ' '.repeat(16 - colA.length) + '-'.repeat(colB.length));
   game.rounds.forEach((r, i) => {
-    const a = r.a + (r.bonusA ? ` (+${r.bonusA}${(r.bonusCountA || 0) > 1 ? `×${r.bonusCountA}` : ''})` : '');
-    const b = r.b + (r.bonusB ? ` (+${r.bonusB}${(r.bonusCountB || 0) > 1 ? `×${r.bonusCountB}` : ''})` : '');
-    lines.push(`P${i + 1}:  ${a.padEnd(20)}  ${b}`);
+    const a = cell(r.a, r.bonusA, r.bonusCountA);
+    const b = cell(r.b, r.bonusB, r.bonusCountB);
+    const num = ('P' + (i + 1)).padEnd(6);
+    lines.push(num + ' ' + a.padEnd(16) + b);
   });
+  lines.push('       ' + '-'.repeat(16) + '-'.repeat(8));
+  lines.push('TOTAL  ' + String(game.totalA).padEnd(16) + game.totalB);
   lines.push('');
-  lines.push(t.total + ': ' + game.totalA + ' - ' + game.totalB);
-  lines.push('');
+
   lines.push('--');
-  lines.push('Dominó Scorekeeper v' + APP_VERSION);
+  lines.push('Dominó Scorekeeper v' + APP_VERSION + (BUILD_DATE ? ' (' + BUILD_DATE + ')' : ''));
   return lines.join('\n');
 }
 

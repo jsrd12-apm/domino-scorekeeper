@@ -37,7 +37,7 @@ esbuild.buildSync({
   jsx: 'automatic',
   define: {
     'process.env.NODE_ENV': '"production"',
-    'process.env.BUILD_DATE': JSON.stringify(new Date().toISOString().slice(0, 10)),
+    'process.env.BUILD_DATE': JSON.stringify(((d) => `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`)(new Date())),
   },
 });
 
