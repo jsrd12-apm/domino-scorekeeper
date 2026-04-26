@@ -145,3 +145,15 @@ button:active.\\active\\:scale-90 { transform: scale(0.90); }
 
 /* Border */
 .border { border-width: 1px; border-style: solid; border-color: #e2e8f0; }
+
+/* iOS safe-area-inset handling: respect notch / dynamic island / status bar */
+.app-header {
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+}
+.install-banner {
+  padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+}
+/* When install banner is above header, banner already absorbs inset; reset header */
+.install-banner + .app-header {
+  padding-top: 1rem;
+}

@@ -408,7 +408,7 @@ export default function DominoScorekeeper() {
 
       <InstallBanner t={t} />
 
-      <header className="px-3 pt-4 pb-3" style={{ background: C.blue }}>
+      <header className="app-header px-3 pb-3" style={{ background: C.blue }}>
         <div className="flex items-center justify-between max-w-md mx-auto">
           <div className="flex items-baseline gap-2">
             <h1 className="text-2xl tracking-wide leading-none" style={{ fontFamily: '"Bebas Neue", sans-serif', color: 'white', letterSpacing: '0.05em' }}>
@@ -550,7 +550,7 @@ function InstallBanner({ t }) {
     : '';
 
   return (
-    <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: C.amberLight, borderBottom: `1px solid ${C.amber}`, color: C.text }}>
+    <div className="install-banner px-3 pb-2 flex items-center justify-between gap-2" style={{ background: C.amberLight, borderBottom: `1px solid ${C.amber}`, color: C.text }}>
       <div className="flex-1 text-xs" style={{ lineHeight: 1.3 }}>
         <div className="font-bold mb-0.5" style={{ color: C.text }}>{t.install_title}</div>
         {hint && <div style={{ color: C.textLight }}>{hint}</div>}
