@@ -1,0 +1,17 @@
+{
+  "name": "domino-scorekeeper",
+  "version": "1.0.0",
+  "description": "Dominican domino scorekeeper PWA. No ads. Works offline.",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js && python3 -m http.server -d dist 8000"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.395.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5"
+  }
+}
