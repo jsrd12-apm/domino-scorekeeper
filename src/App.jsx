@@ -72,6 +72,11 @@ const STRINGS = {
     no_p_corrido: 'sin P.C.',
     no_email_set: 'Email no configurado',
     no_repo_set: 'Repo no configurado',
+    install_title: 'Instalar la app',
+    install_btn: 'Instalar',
+    install_ios_safari: 'Toca Compartir y luego "Agregar a Inicio" para instalar en tu iPhone.',
+    install_ios_chrome: 'Para instalar en iPhone, abre este enlace en Safari.',
+    install_dismiss: 'Cerrar',
   },
   en: {
     new: 'New',
@@ -137,6 +142,11 @@ const STRINGS = {
     no_p_corrido: 'no P.C.',
     no_email_set: 'Email not configured',
     no_repo_set: 'Repo not configured',
+    install_title: 'Install the app',
+    install_btn: 'Install',
+    install_ios_safari: 'Tap Share then "Add to Home Screen" to install on your iPhone.',
+    install_ios_chrome: 'To install on iPhone, open this link in Safari.',
+    install_dismiss: 'Dismiss',
   },
 };
 
@@ -394,6 +404,8 @@ export default function DominoScorekeeper() {
         rel="stylesheet"
       />
 
+      <InstallBanner t={t} />
+
       <header className="px-3 pt-4 pb-3" style={{ background: C.blue }}>
         <div className="flex items-center justify-between max-w-md mx-auto">
           <div className="flex items-baseline gap-2">
@@ -473,6 +485,76 @@ export default function DominoScorekeeper() {
           onClose={() => setEditingRound(null)}
         />
       )}
+    </div>
+  );
+}
+
+// =================== INSTALL BANNER ===================
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isStandalone = () =>
+  (typeof window !== 'undefined') &&
+  (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
+const isSafariIOS = () =>
+  isIOS() && /Safari/.test(navigator.userAgent) &&
+  !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(navigator.userAgent);
+
+function InstallBanner({ t }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('install-dismissed') === '1') setDismissed(true);
+    } catch (e) {}
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    const installed = () => { setDismissed(true); setDeferredPrompt(null); };
+    window.addEventListener('appinstalled', installed);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installed);
+    };
+  }, []);
+
+  if (dismissed || isStandalone()) return null;
+
+  const dismiss = () => {
+    try { localStorage.setItem('install-dismissed', '1'); } catch (e) {}
+    setDismissed(true);
+  };
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') { setDeferredPrompt(null); dismiss(); }
+  };
+
+  const ios = isIOS();
+  const safariIOS = isSafariIOS();
+  const showAndroid = !!deferredPrompt;
+  const showSafariHint = ios && safariIOS;
+  const showChromeIOSHint = ios && !safariIOS;
+
+  if (!showAndroid && !showSafariHint && !showChromeIOSHint) return null;
+
+  return (
+    <div className="px-3 py-2 flex items-center justify-between gap-2" style={{ background: C.amberLight, borderBottom: `1px solid ${C.amber}`, color: C.text }}>
+      <div className="flex-1 text-xs" style={{ lineHeight: 1.3 }}>
+        <div className="font-bold mb-0.5" style={{ color: C.text }}>{t.install_title}</div>
+        <div style={{ color: C.textLight }}>
+          {showSafariHint && t.install_ios_safari}
+          {showChromeIOSHint && t.install_ios_chrome}
+        </div>
+      </div>
+      {showAndroid && (
+        <button onClick={handleInstall} className="px-3 py-1.5 rounded font-bold text-xs active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
+          {t.install_btn}
+        </button>
+      )}
+      <button onClick={dismiss} className="p-1 active:scale-90 transition" style={{ color: C.textLight }} aria-label={t.install_dismiss}>
+        <X size={16} />
+      </button>
     </div>
   );
 }
