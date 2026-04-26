@@ -78,6 +78,19 @@ const STRINGS = {
     install_ios_chrome: 'Para instalar en iPhone, abre este enlace en Safari.',
     install_android_fallback: 'Toca el menú (⋮) de Chrome y luego "Instalar aplicación".',
     install_dismiss: 'Cerrar',
+    check_updates: 'Buscar actualizaciones',
+    checking: 'Buscando...',
+    up_to_date: 'Estás al día. No hay actualizaciones nuevas.',
+    update_failed: 'No se pudo buscar actualizaciones.',
+    share_section: 'Cómo compartir un juego',
+    share_step1: 'Toca el icono compartir (↗︎) arriba a la derecha mientras juegas.',
+    share_step2: 'La app crea una imagen JPG con todas las jugadas, los totales y el ganador.',
+    share_step3: 'Se abre el menú compartir nativo: enví a WhatsApp, Mensajes, Email o guarda en Fotos.',
+    history_section: 'Ver juegos anteriores',
+    history_step1: 'Al terminar un juego, presiona "Nuevo" y la app preguntará si quieres guardarlo.',
+    history_step2: 'Toca el icono del reloj arriba a la derecha para abrir los juegos guardados.',
+    history_step3: 'Cada tarjeta muestra la fecha, los equipos y el resultado. Toca una para ver el detalle jugada por jugada.',
+    history_step4: 'En el detalle puedes "Exportar texto" para enviar por email o "Compartir imagen" como JPG.',
   },
   en: {
     new: 'New',
@@ -149,6 +162,19 @@ const STRINGS = {
     install_ios_chrome: 'To install on iPhone, open this link in Safari.',
     install_android_fallback: 'Tap the Chrome menu (⋮) then "Install app".',
     install_dismiss: 'Dismiss',
+    check_updates: 'Check for updates',
+    checking: 'Checking...',
+    up_to_date: "You're up to date. No new updates available.",
+    update_failed: 'Update check failed.',
+    share_section: 'How to share a game',
+    share_step1: 'Tap the share icon at the top right while you play.',
+    share_step2: 'The app generates a JPG image with all rounds, totals, and the winner.',
+    share_step3: 'The native share menu opens: send via WhatsApp, Messages, Email, or save to Photos.',
+    history_section: 'View previous games',
+    history_step1: 'When a game ends, tap "New" and the app will ask if you want to save it.',
+    history_step2: 'Tap the clock icon at the top right to open saved games.',
+    history_step3: 'Each card shows date, teams, and result. Tap one to see round-by-round detail.',
+    history_step4: 'In the detail view, "Export text" sends the summary by email; "Share image" sends it as JPG.',
   },
 };
 
@@ -214,6 +240,7 @@ export default function DominoScorekeeper() {
   const [editingRound, setEditingRound] = useState(null); // index of round
   const [view, setView] = useState('game');
   const [shareStatus, setShareStatus] = useState(null);
+  const [updating, setUpdating] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const t = STRINGS[state.lang];
@@ -399,6 +426,38 @@ export default function DominoScorekeeper() {
     }
   };
 
+  const checkForUpdates = async () => {
+    if (updating) return;
+    setUpdating(true);
+    try {
+      if (!('serviceWorker' in navigator)) {
+        setUpdating(false);
+        alert(t.update_failed);
+        return;
+      }
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        setUpdating(false);
+        alert(t.update_failed);
+        return;
+      }
+      await reg.update();
+      // Brief wait for new SW install to begin
+      await new Promise((r) => setTimeout(r, 1500));
+      if (reg.waiting || reg.installing) {
+        // A new version is installing/waiting — reload to use it
+        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        window.location.reload();
+        return;
+      }
+      setUpdating(false);
+      alert(t.up_to_date);
+    } catch (e) {
+      setUpdating(false);
+      alert(t.update_failed);
+    }
+  };
+
   return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: '"Inter", system-ui, sans-serif', color: C.text }}>
       <link
@@ -467,6 +526,8 @@ export default function DominoScorekeeper() {
             addRound={addRound}
             setEditingRound={setEditingRound}
             roundsScrollRef={roundsScrollRef}
+            checkForUpdates={checkForUpdates}
+            updating={updating}
           />
         )}
 
@@ -587,7 +648,8 @@ function GameView(p) {
     confirmingExtraBonus, setConfirmingExtraBonus,
     handlePasoTap, pickBonusTeam, confirmAddExtra, clearPendingBonus,
     editingPaso, startEditPaso, savePaso, pasoEditValue, setPasoEditValue,
-    editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef } = p;
+    editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef,
+    checkForUpdates, updating } = p;
 
   const totalPendingBonus = pendingBonusA + pendingBonusB;
 
@@ -760,6 +822,20 @@ function GameView(p) {
           </div>
           <div></div>
         </div>
+      </div>
+
+      {/* Version + check for updates footer */}
+      <div className="text-center mt-3 text-[10px]" style={{ color: C.textLight }}>
+        v{APP_VERSION}
+        {' · '}
+        <button
+          onClick={checkForUpdates}
+          disabled={updating}
+          className="underline active:opacity-60 transition disabled:opacity-50"
+          style={{ color: C.blue, fontWeight: 600 }}
+        >
+          {updating ? t.checking : t.check_updates}
+        </button>
       </div>
     </>
   );
@@ -1067,9 +1143,24 @@ function AboutView({ t, state, onClose }) {
           <li>• {t.use_edit}</li>
           <li>• {t.use_score}</li>
           <li>• {t.use_paso}</li>
-          <li>• {t.use_share}</li>
-          <li>• {t.use_history}</li>
         </ul>
+      </Section>
+
+      <Section title={t.share_section}>
+        <ol className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, paddingLeft: '1.1rem', listStyleType: 'decimal' }}>
+          <li>{t.share_step1}</li>
+          <li>{t.share_step2}</li>
+          <li>{t.share_step3}</li>
+        </ol>
+      </Section>
+
+      <Section title={t.history_section}>
+        <ol className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, paddingLeft: '1.1rem', listStyleType: 'decimal' }}>
+          <li>{t.history_step1}</li>
+          <li>{t.history_step2}</li>
+          <li>{t.history_step3}</li>
+          <li>{t.history_step4}</li>
+        </ol>
       </Section>
 
       <Section title={t.feedback}>

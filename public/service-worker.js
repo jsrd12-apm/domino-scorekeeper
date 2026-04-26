@@ -1,6 +1,6 @@
 // Dominó Scorekeeper - Service Worker
 // Bump CACHE_VERSION when shipping a new build to force clients to refresh.
-const CACHE_VERSION = 'domino-v4';
+const CACHE_VERSION = 'domino-v5';
 
 const ASSETS = [
   './',
@@ -64,4 +64,11 @@ self.addEventListener('fetch', (event) => {
       })
     )
   );
+});
+
+// Handle skipWaiting message from the app's "Check for updates" button
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
