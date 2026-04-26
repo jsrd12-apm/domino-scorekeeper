@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText } from 'lucide-react';
+import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
 const APP_VERSION = '1.0';
@@ -88,9 +88,13 @@ const STRINGS = {
     share_step3: 'Se abre el menú compartir nativo: enví a WhatsApp, Mensajes, Email o guarda en Fotos.',
     history_section: 'Ver juegos anteriores',
     history_step1: 'Al terminar un juego, presiona "Nuevo" y la app preguntará si quieres guardarlo.',
-    history_step2: 'Toca el icono del reloj arriba a la derecha para abrir los juegos guardados.',
+    history_step2: 'Toca el botón "Ver Anteriores" debajo del encabezado para abrir los juegos guardados.',
     history_step3: 'Cada tarjeta muestra la fecha, los equipos y el resultado. Toca una para ver el detalle jugada por jugada.',
     history_step4: 'En el detalle puedes "Exportar texto" para enviar por email o "Compartir imagen" como JPG.',
+    save_game: 'Guardar',
+    view_previous: 'Ver Anteriores',
+    saved_short: 'Guardado',
+    no_rounds_save: 'No hay jugadas para guardar.',
   },
   en: {
     new: 'New',
@@ -172,9 +176,13 @@ const STRINGS = {
     share_step3: 'The native share menu opens: send via WhatsApp, Messages, Email, or save to Photos.',
     history_section: 'View previous games',
     history_step1: 'When a game ends, tap "New" and the app will ask if you want to save it.',
-    history_step2: 'Tap the clock icon at the top right to open saved games.',
+    history_step2: 'Tap the "View Previous" button below the header to open saved games.',
     history_step3: 'Each card shows date, teams, and result. Tap one to see round-by-round detail.',
     history_step4: 'In the detail view, "Export text" sends the summary by email; "Share image" sends it as JPG.',
+    save_game: 'Save',
+    view_previous: 'View Previous',
+    saved_short: 'Saved',
+    no_rounds_save: 'No rounds to save.',
   },
 };
 
@@ -241,6 +249,7 @@ export default function DominoScorekeeper() {
   const [view, setView] = useState('game');
   const [shareStatus, setShareStatus] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const t = STRINGS[state.lang];
@@ -426,6 +435,16 @@ export default function DominoScorekeeper() {
     }
   };
 
+  const saveCurrentGame = () => {
+    if (state.rounds.length === 0) {
+      alert(t.no_rounds_save);
+      return;
+    }
+    saveCurrentToHistory();
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  };
+
   const checkForUpdates = async () => {
     if (updating) return;
     setUpdating(true);
@@ -481,9 +500,6 @@ export default function DominoScorekeeper() {
             <IconBtn onClick={shareGame} disabled={state.rounds.length === 0}>
               <Share2 size={16} />
             </IconBtn>
-            <IconBtn onClick={() => setView(view === 'history' ? 'game' : 'history')}>
-              <History size={16} />
-            </IconBtn>
             <IconBtn onClick={() => setView(view === 'about' ? 'game' : 'about')}>
               <Info size={16} />
             </IconBtn>
@@ -501,6 +517,41 @@ export default function DominoScorekeeper() {
         </div>
         {shareStatus && <div className="text-center text-xs mt-1" style={{ color: C.blueLight }}>{shareStatus}</div>}
       </header>
+
+      {view === 'game' && (
+        <div className="max-w-md mx-auto px-3 pt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={saveCurrentGame}
+            className="flex items-center justify-center gap-2 py-3 rounded-lg font-bold active:scale-95 transition"
+            style={{
+              background: justSaved ? C.green : 'white',
+              color: justSaved ? 'white' : C.blue,
+              border: `2px solid ${justSaved ? C.green : C.blue}`,
+              fontFamily: '"Bebas Neue", sans-serif',
+              letterSpacing: '0.05em',
+              fontSize: '15px',
+            }}
+          >
+            {justSaved ? <Check size={28} /> : <Save size={28} />}
+            <span>{justSaved ? t.saved_short : t.save_game}</span>
+          </button>
+          <button
+            onClick={() => setView('history')}
+            className="flex items-center justify-center gap-2 py-3 rounded-lg font-bold active:scale-95 transition"
+            style={{
+              background: 'white',
+              color: C.blue,
+              border: `2px solid ${C.blue}`,
+              fontFamily: '"Bebas Neue", sans-serif',
+              letterSpacing: '0.05em',
+              fontSize: '15px',
+            }}
+          >
+            <History size={28} />
+            <span>{t.view_previous}</span>
+          </button>
+        </div>
+      )}
 
       <div className="max-w-md mx-auto px-3 py-2">
         {view === 'game' && (
