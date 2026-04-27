@@ -1,4 +1,4 @@
-import { test, chromium, webkit, type BrowserType, type Page } from '@playwright/test';
+import { test, expect, chromium, webkit, type BrowserType, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -165,6 +165,26 @@ test.describe('local regression coverage for v0.0.18 fixes', () => {
     await page.getByRole('button', { name: /^Guardar$/ }).last().click();
 
     await page.getByText(/^40$/).last().waitFor();
+  });
+
+  test('strict mode rejects bonus staging that would pass the target', async ({ page }) => {
+    await resetLocal(page);
+
+    await fillScores(page, 100, undefined);
+    await addRound(page);
+    await fillScores(page, 80, undefined);
+    await addRound(page);
+    await page.getByText(/^180$/).last().waitFor();
+
+    await page.getByRole('button', { name: /CORRIDO/i }).first().click();
+    await page.getByRole('button', { name: /^Nosotros$/ }).nth(1).click();
+    await page.getByText('No caben').waitFor();
+    await expect(page.getByText(/^P3$/)).toHaveCount(0);
+
+    await page.getByRole('button', { name: /CORRIDO/i }).first().click();
+    await page.getByRole('button', { name: /^Nosotros$/ }).nth(1).click();
+    await expect(page.getByText('No caben')).toBeVisible();
+    await expect(page.getByText(/^P3$/)).toHaveCount(0);
   });
 });
 

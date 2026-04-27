@@ -42,6 +42,19 @@ export function bonusTotal({ pasoCount = 0, tenCount = 0, pasoValue = 25, bonus1
     + Math.max(0, Number(tenCount) || 0) * bonus10Value;
 }
 
+export function canAcceptBonus({
+  currentTotal,
+  pendingBonusValue,
+  additionalBonusValue,
+  target,
+  strictMode,
+}) {
+  if (!strictMode) return true;
+  return Number(currentTotal || 0)
+    + Number(pendingBonusValue || 0)
+    + Number(additionalBonusValue || 0) <= Number(target || 0);
+}
+
 export function roundTotals(rounds = []) {
   return rounds.reduce((totals, round) => ({
     totalA: totals.totalA + Number(round.a || 0) + Number(round.bonusA || 0),

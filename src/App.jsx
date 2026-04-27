@@ -3,6 +3,7 @@ import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLe
 import {
   applyModeChange,
   bonusTotal,
+  canAcceptBonus,
   createId,
   ensureTeamId,
   incrementSets,
@@ -14,7 +15,7 @@ import {
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.18';
+const APP_VERSION = '0.0.19';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
@@ -47,6 +48,7 @@ const STRINGS = {
     share_failed: 'No se pudo compartir',
     add_another_paso: '¿Agregar otro Paso Corrido?',
     yes: 'Sí',
+    no: 'No',
     edit_round: 'Editar jugada',
     main_score: 'Puntos',
     pc_count: 'Paso Corrido (cantidad)',
@@ -187,6 +189,10 @@ const STRINGS = {
     selected_only: 'Solo seleccionados',
     close: 'Cerrar',
     clear_all_bonus: 'Quitar todos los bonos',
+    strict_mode: 'Modo estricto',
+    strict_mode_desc: 'Rechazar bonos que pasen la meta',
+    no_caben: 'No caben',
+    no_caben_hint: 'Cambia "modo estricto" en Ajustes si tu familia permite pasarse de la meta con bonos.',
     csv_date: 'Fecha',
     csv_team_a: 'Equipo A',
     csv_players_a: 'Jugadores A',
@@ -224,6 +230,7 @@ const STRINGS = {
     share_failed: 'Share failed',
     add_another_paso: 'Add another Paso Corrido?',
     yes: 'Yes',
+    no: 'No',
     edit_round: 'Edit round',
     main_score: 'Points',
     pc_count: 'Paso Corrido (count)',
@@ -364,6 +371,10 @@ const STRINGS = {
     selected_only: 'Selected only',
     close: 'Close',
     clear_all_bonus: 'Clear all bonuses',
+    strict_mode: 'Strict mode',
+    strict_mode_desc: 'Reject bonuses that overshoot the target',
+    no_caben: "Won't fit",
+    no_caben_hint: 'Toggle "strict mode" in Settings if your family allows bonuses to overshoot the target.',
     csv_date: 'Date',
     csv_team_a: 'Team A',
     csv_players_a: 'Players A',
@@ -389,6 +400,7 @@ const DEFAULT_STATE = {
   teamB: { id: createId(), name: 'Ellos', p1: 'Jugador Tres', p2: 'Jugador Cuatro' },
   pasoValue: 25,
   bonus10Value: 10,
+  strictBonus: true,
   creator: 'José Rodríguez',
   feedbackEmail: DEFAULT_FEEDBACK_EMAIL,
   githubRepo: DEFAULT_GITHUB_REPO,
@@ -434,6 +446,7 @@ export default function DominoScorekeeper() {
   const [upToDateFlash, setUpToDateFlash] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [confirmingNew, setConfirmingNew] = useState(false);
+  const [noCabenToast, setNoCabenToast] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
   const t = STRINGS[state.lang];
@@ -488,6 +501,12 @@ export default function DominoScorekeeper() {
     }
   }, [state.rounds.length]);
 
+  useEffect(() => {
+    if (!noCabenToast) return undefined;
+    const timer = window.setTimeout(() => setNoCabenToast(false), 3500);
+    return () => window.clearTimeout(timer);
+  }, [noCabenToast]);
+
   const { totalA, totalB } = roundTotals(state.rounds);
   const currentWinnerSide = winnerSide({ totalA, totalB, target: state.target });
   const winner =
@@ -523,6 +542,7 @@ export default function DominoScorekeeper() {
     setPendingPasoB(0);
     setPendingTenA(0);
     setPendingTenB(0);
+    setNoCabenToast(false);
   };
 
   // Bonus button always opens the team picker
@@ -533,6 +553,29 @@ export default function DominoScorekeeper() {
   const pickBonusTeam = (team) => {
     const type = pickingBonusType;
     setPickingBonusType(null);
+    if (!type) return;
+
+    const isTeamA = team === 'a';
+    const teamCurrentTotal = isTeamA ? totalA : totalB;
+    const teamPendingValue = bonusTotal({
+      pasoCount: isTeamA ? pendingPasoA : pendingPasoB,
+      tenCount: isTeamA ? pendingTenA : pendingTenB,
+      pasoValue: state.pasoValue,
+      bonus10Value: state.bonus10Value,
+    });
+    const additionalBonusValue = type === 'paso' ? state.pasoValue : state.bonus10Value;
+
+    if (!canAcceptBonus({
+      currentTotal: teamCurrentTotal,
+      pendingBonusValue: teamPendingValue,
+      additionalBonusValue,
+      target: state.target,
+      strictMode: state.strictBonus,
+    })) {
+      setNoCabenToast((toastKey) => (Number(toastKey) || 0) + 1);
+      return;
+    }
+
     if (type === 'paso') {
       if (team === 'a') setPendingPasoA((c) => c + 1);
       else setPendingPasoB((c) => c + 1);
@@ -550,6 +593,7 @@ export default function DominoScorekeeper() {
       setPendingPasoB(0);
       setPendingTenB(0);
     }
+    setNoCabenToast(false);
   };
 
   const clearAllPending = () => {
@@ -557,6 +601,7 @@ export default function DominoScorekeeper() {
     setPendingPasoB(0);
     setPendingTenA(0);
     setPendingTenB(0);
+    setNoCabenToast(false);
   };
 
   const deleteRound = (i) => setState((s) => ({ ...s, rounds: s.rounds.filter((_, idx) => idx !== i) }));
@@ -858,6 +903,8 @@ export default function DominoScorekeeper() {
             pickBonusTeam={pickBonusTeam}
             clearPendingBonusForTeam={clearPendingBonusForTeam}
             clearAllPending={clearAllPending}
+            noCabenToast={noCabenToast}
+            setNoCabenToast={setNoCabenToast}
             editingField={editingField} setEditingField={setEditingField}
             updateTeam={updateTeam}
             addRound={addRound}
@@ -998,6 +1045,7 @@ function GameView(p) {
     pickingBonusType, setPickingBonusType,
     handleBonusTap, pickBonusTeam,
     clearPendingBonusForTeam, clearAllPending,
+    noCabenToast, setNoCabenToast,
     editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef,
     checkForUpdates, updating, upToDateFlash, update } = p;
 
@@ -1038,6 +1086,28 @@ function GameView(p) {
         <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} />
         <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} />
       </div>
+
+      {noCabenToast && (
+        <div
+          className="mb-2 px-3 py-2 rounded-lg"
+          style={{ background: C.amberLight, border: `1px dashed ${C.amber}` }}
+        >
+          <div className="flex items-center justify-between gap-2 font-bold text-sm" style={{ color: C.text }}>
+            <span>{t.no_caben}</span>
+            <button
+              onClick={() => setNoCabenToast(false)}
+              className="p-0.5 rounded active:scale-90 transition"
+              style={{ color: C.amber }}
+              aria-label={t.close}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: C.textLight, lineHeight: 1.35 }}>
+            {t.no_caben_hint}
+          </div>
+        </div>
+      )}
 
       <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
         <button
@@ -1651,6 +1721,26 @@ function SettingsView({ t, state, update, onClose }) {
           ))}
         </div>
       </Section>
+
+      <div className="mb-3 p-3 rounded-lg flex items-center justify-between gap-3" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+        <div>
+          <div className="font-bold text-sm" style={{ color: C.text }}>{t.strict_mode}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.textLight }}>{t.strict_mode_desc}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => update({ strictBonus: !state.strictBonus })}
+          className="py-2.5 px-4 rounded-lg font-bold active:scale-95 transition text-sm"
+          style={{
+            background: state.strictBonus ? C.blue : 'white',
+            color: state.strictBonus ? 'white' : C.text,
+            border: `2px solid ${state.strictBonus ? C.blue : C.border}`,
+            minWidth: '72px',
+          }}
+        >
+          {state.strictBonus ? t.yes : t.no}
+        </button>
+      </div>
 
       <Section title={t.bonus_values}>
         <div className="grid grid-cols-2 gap-2">

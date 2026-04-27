@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   applyModeChange,
   bonusTotal,
+  canAcceptBonus,
   createId,
   incrementSets,
   isDuplicateSave,
@@ -72,5 +73,80 @@ test.describe('scoring domain helpers', () => {
       tenCountB: 0,
       legacyBonusA: 35,
     });
+  });
+
+  test('strict bonus mode can be disabled', () => {
+    expect(canAcceptBonus({
+      currentTotal: 199,
+      pendingBonusValue: 25,
+      additionalBonusValue: 25,
+      target: 200,
+      strictMode: false,
+    })).toBe(true);
+  });
+
+  test('strict bonus allows exactly hitting the target', () => {
+    expect(canAcceptBonus({
+      currentTotal: 170,
+      pendingBonusValue: 5,
+      additionalBonusValue: 25,
+      target: 200,
+      strictMode: true,
+    })).toBe(true);
+  });
+
+  test('strict bonus rejects overshooting by one', () => {
+    expect(canAcceptBonus({
+      currentTotal: 175,
+      pendingBonusValue: 0,
+      additionalBonusValue: 26,
+      target: 200,
+      strictMode: true,
+    })).toBe(false);
+  });
+
+  test('strict bonus counts stacked pending bonuses', () => {
+    expect(canAcceptBonus({
+      currentTotal: 170,
+      pendingBonusValue: 0,
+      additionalBonusValue: 25,
+      target: 200,
+      strictMode: true,
+    })).toBe(true);
+    expect(canAcceptBonus({
+      currentTotal: 170,
+      pendingBonusValue: 25,
+      additionalBonusValue: 25,
+      target: 200,
+      strictMode: true,
+    })).toBe(false);
+  });
+
+  test('strict bonus rejects when current total already exceeds target', () => {
+    expect(canAcceptBonus({
+      currentTotal: 205,
+      pendingBonusValue: 0,
+      additionalBonusValue: 10,
+      target: 200,
+      strictMode: true,
+    })).toBe(false);
+  });
+
+  test('strict bonus arithmetic includes pending paso and +10 values', () => {
+    const pendingBonusValue = bonusTotal({ pasoCount: 1, tenCount: 2, pasoValue: 25, bonus10Value: 10 });
+    expect(canAcceptBonus({
+      currentTotal: 140,
+      pendingBonusValue,
+      additionalBonusValue: 15,
+      target: 200,
+      strictMode: true,
+    })).toBe(true);
+    expect(canAcceptBonus({
+      currentTotal: 141,
+      pendingBonusValue,
+      additionalBonusValue: 15,
+      target: 200,
+      strictMode: true,
+    })).toBe(false);
   });
 });
