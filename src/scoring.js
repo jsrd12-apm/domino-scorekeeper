@@ -105,3 +105,37 @@ export function saveFingerprint({ rounds, totalA, totalB }) {
 export function isDuplicateSave(history = [], fingerprint) {
   return !!fingerprint && history[0]?.fingerprint === fingerprint;
 }
+
+// Count wins between two team-name pairings across history.
+// Optional sinceTimestamp filters to entries newer than that ms epoch.
+// Returns { winsA, winsB, total } where winsA = nameA's wins.
+export function headToHeadFromHistory(history, nameA, nameB, sinceTimestamp = null) {
+  let winsA = 0;
+  let winsB = 0;
+  let total = 0;
+  if (!Array.isArray(history) || !nameA || !nameB) {
+    return { winsA, winsB, total };
+  }
+  for (const g of history) {
+    if (!g || !g.teamA || !g.teamB) continue;
+    if (sinceTimestamp != null) {
+      const t = new Date(g.date).getTime();
+      if (Number.isNaN(t) || t < sinceTimestamp) continue;
+    }
+    const a = g.teamA.name;
+    const b = g.teamB.name;
+    const matches = (a === nameA && b === nameB) || (a === nameB && b === nameA);
+    if (!matches) continue;
+    total += 1;
+    if (g.winner === nameA) winsA += 1;
+    else if (g.winner === nameB) winsB += 1;
+  }
+  return { winsA, winsB, total };
+}
+
+// Returns ms epoch for the start of "today" in the user's local timezone.
+export function startOfTodayMs(now = new Date()) {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}

@@ -6,16 +6,18 @@ import {
   canAcceptBonus,
   createId,
   ensureTeamId,
+  headToHeadFromHistory,
   incrementSets,
   isDuplicateSave,
   migrateRound,
   roundTotals,
   saveFingerprint,
+  startOfTodayMs,
   winnerSide,
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.23';
+const APP_VERSION = '0.0.24';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 
@@ -154,6 +156,9 @@ const STRINGS = {
     bonus_10_value: 'Bono +10',
     beta: 'BETA',
     set_score: 'SETS',
+    today_label: 'HOY',
+    historical_label: 'HISTÓRICO',
+    series_label: 'SERIE',
     update_btn: 'Actualizar',
     up_to_date_short: 'Última versión',
     suggestions: 'Sugerencias',
@@ -338,6 +343,9 @@ const STRINGS = {
     bonus_10_value: 'Bonus +10',
     beta: 'BETA',
     set_score: 'SETS',
+    today_label: 'TODAY',
+    historical_label: 'ALL TIME',
+    series_label: 'SERIES',
     update_btn: 'Update',
     up_to_date_short: 'Up to date',
     suggestions: 'Feedback',
@@ -866,6 +874,7 @@ export default function DominoScorekeeper() {
             state={state}
             setsA={state.setsA}
             setsB={state.setsB}
+            history={history}
             editingField={editingField}
             setEditingField={setEditingField}
             updateTeam={updateTeam}
@@ -1450,9 +1459,29 @@ function BonusSlot({ value, count }) {
   );
 }
 
-function TeamRow({ t, state, setsA, setsB, editingField, setEditingField, updateTeam }) {
+function TeamRow({ t, state, setsA, setsB, history, editingField, setEditingField, updateTeam }) {
   const setsToWin = Math.ceil(state.bestOf / 2);
-  const showSetsToWin = state.bestOf > 1;
+  const inSeries = state.bestOf > 1;
+  const todaySince = startOfTodayMs();
+  const today = headToHeadFromHistory(history, state.teamA.name, state.teamB.name, todaySince);
+  const lifetime = headToHeadFromHistory(history, state.teamA.name, state.teamB.name, null);
+
+  const Score = ({ label, a, b, suffix, primary }) => (
+    <div className="flex flex-col items-center" style={{ marginTop: primary ? 0 : '2px' }}>
+      <span style={{ fontSize: primary ? '9px' : '8px', color: C.textLight, fontWeight: 700, letterSpacing: '0.15em' }}>
+        {label}
+      </span>
+      <div className="flex items-baseline gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif', lineHeight: 1 }}>
+        <span style={{ fontSize: primary ? '20px' : '14px', color: C.red, fontWeight: 700 }}>{a}</span>
+        <span style={{ fontSize: primary ? '14px' : '11px', color: C.textLight }}>-</span>
+        <span style={{ fontSize: primary ? '20px' : '14px', color: C.blue, fontWeight: 700 }}>{b}</span>
+        {suffix && (
+          <span style={{ fontSize: '9px', color: C.textLight, marginLeft: '2px' }}>{suffix}</span>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="grid items-center gap-2" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
       <CompactTeamCard
@@ -1464,19 +1493,14 @@ function TeamRow({ t, state, setsA, setsB, editingField, setEditingField, update
         updateTeam={updateTeam}
         align="right"
       />
-      <div className="flex flex-col items-center" style={{ minWidth: '64px' }}>
-        <span style={{ fontSize: '9px', color: C.textLight, fontWeight: 700, letterSpacing: '0.15em' }}>
-          {t.set_score}
-        </span>
-        <div className="flex items-baseline gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif' }}>
-          <span style={{ fontSize: '22px', color: C.red, fontWeight: 700 }}>{setsA}</span>
-          <span style={{ fontSize: '16px', color: C.textLight }}>-</span>
-          <span style={{ fontSize: '22px', color: C.blue, fontWeight: 700 }}>{setsB}</span>
-        </div>
-        {showSetsToWin && (
-          <span style={{ fontSize: '9px', color: C.textLight, marginTop: '-2px' }}>
-            a {setsToWin}
-          </span>
+      <div className="flex flex-col items-center" style={{ minWidth: '78px' }}>
+        {inSeries ? (
+          <Score label={t.series_label} a={setsA} b={setsB} suffix={`a ${setsToWin}`} primary />
+        ) : (
+          <Score label={t.today_label} a={today.winsA} b={today.winsB} primary />
+        )}
+        {lifetime.total > 0 && (
+          <Score label={t.historical_label} a={lifetime.winsA} b={lifetime.winsB} />
         )}
       </div>
       <CompactTeamCard

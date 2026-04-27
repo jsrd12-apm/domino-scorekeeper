@@ -1,6 +1,6 @@
 // Dominó Scorekeeper - Service Worker
 // Bump CACHE_VERSION when shipping a new build to force clients to refresh.
-const CACHE_VERSION = 'domino-v23';
+const CACHE_VERSION = 'domino-v24';
 
 const ASSETS = [
   './',
