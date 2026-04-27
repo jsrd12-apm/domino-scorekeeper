@@ -15,14 +15,15 @@ import {
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.22';
+const APP_VERSION = '0.0.23';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 
 const CONTRIBUTORS = [
-  { name: 'Daniel Rodríguez', role: 'Idea original' },
-  { name: 'Marcos Rodríguez', role: 'Hermano' },
-  { name: 'Ramón Rodríguez', role: 'Hermano' },
+  { name: 'Daniel Rodríguez', role: 'Idea original y pruebas iniciales del proyecto' },
+  { name: 'Marcos Rodríguez', role: 'Probador inicial del modelo y muchas ideas buenas' },
+  { name: 'Ramón Rodríguez', role: 'Probador inicial y muchas ideas sustantivas' },
+  { name: 'Diego Rodríguez', role: 'Probador en Android y sugerencias sobre funcionamiento' },
 ];
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
