@@ -15,7 +15,7 @@ import {
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.20';
+const APP_VERSION = '0.0.21';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 
@@ -114,11 +114,11 @@ const STRINGS = {
     history_step2: 'Toca el botón "Ver Anteriores" debajo del encabezado para abrir los juegos guardados.',
     history_step3: 'Cada tarjeta muestra la fecha, los equipos y el resultado. Toca una para ver el detalle jugada por jugada.',
     history_step4: 'En el detalle puedes exportar como texto para enviar por email o compartir como imagen JPG.',
-    bonus_section: 'Bonos: Corrido y +10',
+    bonus_section: 'BONOS: Pase CORRIDO y + pase en salida',
     bonus_step1: 'Toca CORRIDO o +10 durante una jugada en curso.',
     bonus_step2: 'Selecciona el equipo que recibe el bono. Aparece como una jugada pendiente al final de la tabla con "?" en los puntos.',
-    bonus_step3: 'Toca el botón del bono otra vez para apilar más. Cada toque suma una unidad.',
-    bonus_step4: 'Cuando termine la jugada, ingresa los puntos del ganador y toca + para confirmar. El bono se aplica a esa jugada.',
+    bonus_step3: 'Toca el botón del bono otra vez para otro pase corrido.',
+    bonus_step4: 'Cuando termine la mano, ingresa los puntos del ganador y toca + para confirmar. El bono se aplica a esa mano.',
     series_section: 'Series (mejor de 3 o 5)',
     series_step1: 'Al tocar "Nuevo" eliges modo: un juego, mejor de 3, o mejor de 5.',
     series_step2: 'El marcador entre los equipos cuenta los sets ganados. Se actualiza automáticamente al guardar un juego.',
@@ -298,11 +298,11 @@ const STRINGS = {
     history_step2: 'Tap the "View Previous" button below the header to open saved games.',
     history_step3: 'Each card shows date, teams, and result. Tap one to see round-by-round detail.',
     history_step4: 'In the detail view you can export as text for email or share as a JPG image.',
-    bonus_section: 'Bonuses: Corrido and +10',
-    bonus_step1: 'Tap CORRIDO or +10 during a round in progress.',
+    bonus_section: 'BONUSES: Pase CORRIDO and + pase en salida',
+    bonus_step1: 'Tap CORRIDO or +10 during a hand in progress.',
     bonus_step2: 'Pick the team receiving the bonus. It appears as a pending round at the bottom of the table with "?" placeholders.',
-    bonus_step3: 'Tap the bonus button again to stack more. Each tap adds one unit.',
-    bonus_step4: 'When the round ends, enter the winner\'s points and tap + to commit. The bonus applies to that round.',
+    bonus_step3: 'Tap the bonus button again for another pase corrido.',
+    bonus_step4: 'When the hand ends, enter the winner\'s points and tap + to commit. The bonus applies to that hand.',
     series_section: 'Series (best of 3 or 5)',
     series_step1: 'Tapping "New" lets you pick a mode: single game, best of 3, or best of 5.',
     series_step2: 'The middle scoreboard counts sets won. Auto-updates when a game is saved.',
