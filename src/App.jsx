@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.1.0';
 const BUILD_DATE = (typeof process !== 'undefined' && process.env && process.env.BUILD_DATE) || '';
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -100,6 +100,12 @@ const STRINGS = {
     confirm_new_in_progress: 'jugadas en curso',
     save_and_new: 'Guardar y empezar nuevo',
     discard_and_new: 'Empezar sin guardar',
+    best_of: 'Serie',
+    best_of_1: 'Un juego',
+    best_of_3: 'Mejor de 3',
+    best_of_5: 'Mejor de 5',
+    series_won: 'GANARON LA SERIE',
+    pc_pending_hint: 'P.C. agregado',
   },
   en: {
     new: 'New',
@@ -192,12 +198,22 @@ const STRINGS = {
     confirm_new_in_progress: 'rounds in progress',
     save_and_new: 'Save and start new',
     discard_and_new: 'Start without saving',
+    best_of: 'Series',
+    best_of_1: 'Single game',
+    best_of_3: 'Best of 3',
+    best_of_5: 'Best of 5',
+    series_won: 'WON THE SERIES',
+    pc_pending_hint: 'P.C. added',
   },
 };
 
 const DEFAULT_STATE = {
   lang: 'es',
   target: 200,
+  bestOf: 1,
+  setsA: 0,
+  setsB: 0,
+  setHandledForRounds: -1,
   teamA: { name: 'Nosotros', p1: 'Jugador Uno', p2: 'Jugador Dos' },
   teamB: { name: 'Ellos', p1: 'Jugador Tres', p2: 'Jugador Cuatro' },
   pasoValue: 25,
@@ -306,6 +322,29 @@ export default function DominoScorekeeper() {
     }
   }, [state.rounds.length]);
 
+  // Auto-increment set count when a winner is detected in a best-of-N series.
+  // Idempotent: setHandledForRounds tracks the last rounds.length we handled,
+  // so increment fires exactly once per completed game until rounds change.
+  useEffect(() => {
+    if (!loaded) return;
+    if (state.bestOf <= 1) return;
+    const totalA = state.rounds.reduce((s, r) => s + r.a + (r.bonusA || 0), 0);
+    const totalB = state.rounds.reduce((s, r) => s + r.b + (r.bonusB || 0), 0);
+    const w = totalA >= state.target && totalA > totalB ? 'a'
+            : totalB >= state.target && totalB > totalA ? 'b' : null;
+    if (!w) return;
+    if (state.setHandledForRounds === state.rounds.length) return; // already counted
+    const setsToWin = Math.ceil(state.bestOf / 2);
+    if (state.setsA >= setsToWin || state.setsB >= setsToWin) return; // series already over
+    setState((s) => ({
+      ...s,
+      setsA: w === 'a' ? s.setsA + 1 : s.setsA,
+      setsB: w === 'b' ? s.setsB + 1 : s.setsB,
+      setHandledForRounds: s.rounds.length,
+    }));
+  }, [state.rounds, state.bestOf, state.target, loaded]);
+
+
   const totalA = state.rounds.reduce((s, r) => s + r.a + (r.bonusA || 0), 0);
   const totalB = state.rounds.reduce((s, r) => s + r.b + (r.bonusB || 0), 0);
   const winner =
@@ -384,7 +423,17 @@ export default function DominoScorekeeper() {
   };
 
   const resetGame = () => {
-    setState((s) => ({ ...s, rounds: [] }));
+    setState((s) => {
+      const setsToWin = Math.ceil(s.bestOf / 2);
+      const seriesOver = s.setsA >= setsToWin || s.setsB >= setsToWin;
+      return {
+        ...s,
+        rounds: [],
+        setHandledForRounds: -1,
+        setsA: seriesOver ? 0 : s.setsA,
+        setsB: seriesOver ? 0 : s.setsB,
+      };
+    });
     setScoreA('');
     setScoreB('');
     clearPendingBonus();
@@ -589,6 +638,7 @@ export default function DominoScorekeeper() {
             roundsScrollRef={roundsScrollRef}
             checkForUpdates={checkForUpdates}
             updating={updating}
+            update={update}
           />
         )}
 
@@ -720,40 +770,50 @@ function GameView(p) {
     handlePasoTap, pickBonusTeam, confirmAddExtra, clearPendingBonus,
     editingPaso, startEditPaso, savePaso, pasoEditValue, setPasoEditValue,
     editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef,
-    checkForUpdates, updating } = p;
+    checkForUpdates, updating, update } = p;
 
   const totalPendingBonus = pendingBonusA + pendingBonusB;
 
   return (
     <>
-      {winner && (
-        <div className="mb-2 py-1.5 px-2 rounded-lg text-center flex items-center justify-center gap-1" style={{ background: C.gold, color: C.blueDark }}>
-          <Trophy size={14} />
-          <span className="text-sm font-bold tracking-wide" style={{ fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}>
-            {winner.toUpperCase()} {t.wins}
-          </span>
-        </div>
-      )}
+      {(() => {
+        const setsToWin = Math.ceil(state.bestOf / 2);
+        const seriesWinnerName = state.setsA >= setsToWin ? state.teamA.name
+                               : state.setsB >= setsToWin ? state.teamB.name : null;
+        if (state.bestOf > 1 && seriesWinnerName) {
+          return (
+            <div className="mb-2 py-2 px-2 rounded-lg text-center flex items-center justify-center gap-1" style={{ background: C.gold, color: C.blueDark, border: `2px solid ${C.blueDark}` }}>
+              <Trophy size={16} />
+              <span className="text-base font-bold tracking-wide" style={{ fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}>
+                {seriesWinnerName.toUpperCase()} {t.series_won}
+              </span>
+            </div>
+          );
+        }
+        if (winner) {
+          return (
+            <div className="mb-2 py-1.5 px-2 rounded-lg text-center flex items-center justify-center gap-1" style={{ background: C.gold, color: C.blueDark }}>
+              <Trophy size={14} />
+              <span className="text-sm font-bold tracking-wide" style={{ fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}>
+                {winner.toUpperCase()} {t.wins}
+              </span>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <TeamColumn team={state.teamA} teamKey="teamA" accent={C.red} editingField={editingField} setEditingField={setEditingField} updateTeam={updateTeam} />
-        <TeamColumn team={state.teamB} teamKey="teamB" accent={C.blue} editingField={editingField} setEditingField={setEditingField} updateTeam={updateTeam} />
+        <TeamColumn team={state.teamA} teamKey="teamA" accent={C.red} editingField={editingField} setEditingField={setEditingField} updateTeam={updateTeam} sets={state.setsA} bestOf={state.bestOf} />
+        <TeamColumn team={state.teamB} teamKey="teamB" accent={C.blue} editingField={editingField} setEditingField={setEditingField} updateTeam={updateTeam} sets={state.setsB} bestOf={state.bestOf} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} pendingBonus={pendingBonusA} pasoValue={state.pasoValue} onClearBonus={clearPendingBonus} />
-        <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} pendingBonus={pendingBonusB} pasoValue={state.pasoValue} onClearBonus={clearPendingBonus} />
+        <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} pendingBonus={pendingBonusA} pasoValue={state.pasoValue} onClearBonus={clearPendingBonus} t={t} />
+        <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} pendingBonus={pendingBonusB} pasoValue={state.pasoValue} onClearBonus={clearPendingBonus} t={t} />
       </div>
 
-      <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr auto' }}>
-        <button
-          onClick={addRound}
-          disabled={!scoreA && !scoreB && totalPendingBonus === 0}
-          className="font-bold py-2.5 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-40"
-          style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.1em', fontSize: '15px' }}
-        >
-          <Plus size={16} /> {t.add}
-        </button>
+      <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1.2fr auto 2fr' }}>
         {!editingPaso ? (
           <button
             onClick={handlePasoTap}
@@ -790,6 +850,14 @@ function GameView(p) {
           style={{ background: 'white', border: `2px solid ${C.borderDark}`, color: C.amber }}
         >
           {editingPaso ? <Check size={16} /> : <Pencil size={14} />}
+        </button>
+        <button
+          onClick={addRound}
+          disabled={!scoreA && !scoreB && totalPendingBonus === 0}
+          className="font-bold py-2.5 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-40"
+          style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.1em', fontSize: '15px' }}
+        >
+          <Plus size={16} /> {t.add}
         </button>
       </div>
 
@@ -936,18 +1004,38 @@ function BonusSlot({ value, count }) {
   );
 }
 
-function TeamColumn({ team, teamKey, accent, editingField, setEditingField, updateTeam }) {
+function TeamColumn({ team, teamKey, accent, editingField, setEditingField, updateTeam, sets, bestOf }) {
   const fieldKey = (f) => `${teamKey}.${f}`;
+  const showSets = bestOf > 1;
+  const setsToWin = Math.ceil(bestOf / 2);
   return (
     <div className="px-2 py-1.5 rounded-lg text-center" style={{ background: 'white', border: `2px solid ${accent}` }}>
-      <EditableLine
-        value={team.name}
-        editing={editingField === fieldKey('name')}
-        onEdit={() => setEditingField(fieldKey('name'))}
-        onSave={() => setEditingField(null)}
-        onChange={(v) => updateTeam(teamKey, { name: v })}
-        size="lg" accent={accent}
-      />
+      <div className="flex items-center justify-center gap-1.5">
+        <EditableLine
+          value={team.name}
+          editing={editingField === fieldKey('name')}
+          onEdit={() => setEditingField(fieldKey('name'))}
+          onSave={() => setEditingField(null)}
+          onChange={(v) => updateTeam(teamKey, { name: v })}
+          size="lg" accent={accent}
+        />
+        {showSets && (
+          <span
+            className="font-bold tabular-nums"
+            style={{
+              fontFamily: '"Bebas Neue", sans-serif',
+              fontSize: '14px',
+              color: accent,
+              background: '#f1f5f9',
+              padding: '2px 6px',
+              borderRadius: '6px',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {sets}/{setsToWin}
+          </span>
+        )}
+      </div>
       <div className="flex justify-center gap-2 mt-0.5">
         <EditableLine
           value={team.p1}
@@ -998,8 +1086,9 @@ function EditableLine({ value, editing, onEdit, onSave, onChange, size, accent }
   );
 }
 
-function ScoreBox({ value, onChange, onEnter, accent, pendingBonus, pasoValue, onClearBonus }) {
+function ScoreBox({ value, onChange, onEnter, accent, pendingBonus, pasoValue, onClearBonus, t }) {
   const totalBonus = pendingBonus * pasoValue;
+  const hasBonus = pendingBonus > 0;
   return (
     <div className="relative">
       <input
@@ -1009,18 +1098,25 @@ function ScoreBox({ value, onChange, onEnter, accent, pendingBonus, pasoValue, o
         onKeyDown={(e) => e.key === 'Enter' && onEnter()}
         className="w-full rounded-lg px-2 py-3 text-3xl text-center font-bold outline-none transition"
         style={{
-          border: `2px solid ${pendingBonus > 0 ? C.amber : value ? accent : C.borderDark}`,
+          border: `2px solid ${hasBonus ? C.amber : value ? accent : C.borderDark}`,
           color: accent, background: 'white', fontFamily: '"Bebas Neue", sans-serif',
         }}
       />
-      {pendingBonus > 0 && (
-        <button
-          onClick={onClearBonus}
-          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5"
-          style={{ background: C.amber, color: 'white', fontFamily: '"Bebas Neue", sans-serif' }}
+      {hasBonus && (
+        <div
+          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm"
+          style={{ background: C.amber, color: 'white', fontFamily: '"Bebas Neue", sans-serif', border: '1px solid white' }}
         >
-          +{totalBonus}{pendingBonus > 1 ? ` ×${pendingBonus}` : ''} <X size={9} />
-        </button>
+          <span>+{totalBonus}{pendingBonus > 1 ? ` ×${pendingBonus}` : ''} {t.pc_pending_hint}</span>
+          <button
+            onClick={onClearBonus}
+            className="active:scale-90"
+            style={{ color: 'white', display: 'flex', alignItems: 'center' }}
+            aria-label="quitar"
+          >
+            <X size={11} />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -1178,6 +1274,25 @@ function SettingsView({ t, state, update, onClose }) {
           className="w-full text-center text-2xl font-bold rounded-lg px-2 py-2 border-2 outline-none"
           style={{ borderColor: C.blue, color: C.blue, background: 'white', fontFamily: '"Bebas Neue", sans-serif' }}
         />
+      </Section>
+
+      <Section title={t.best_of}>
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 3, 5].map((n) => (
+            <button
+              key={n}
+              onClick={() => update({ bestOf: n, setsA: 0, setsB: 0 })}
+              className="py-2.5 rounded-lg font-bold active:scale-95 transition text-sm"
+              style={{
+                background: state.bestOf === n ? C.blue : 'white',
+                color: state.bestOf === n ? 'white' : C.text,
+                border: `2px solid ${state.bestOf === n ? C.blue : C.border}`,
+              }}
+            >
+              {n === 1 ? t.best_of_1 : n === 3 ? t.best_of_3 : t.best_of_5}
+            </button>
+          ))}
+        </div>
       </Section>
 
       <Section title={t.created_by}>
