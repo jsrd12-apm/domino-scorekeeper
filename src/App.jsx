@@ -1,8 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
+import {
+  applyModeChange,
+  bonusTotal,
+  createId,
+  ensureTeamId,
+  incrementSets,
+  isDuplicateSave,
+  migrateRound,
+  roundTotals,
+  saveFingerprint,
+  winnerSide,
+} from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.17';
+const APP_VERSION = '0.0.18';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
@@ -54,12 +66,12 @@ const STRINGS = {
     rule_teams: 'Cada equipo es de 2 jugadores.',
     rule_target: 'Se gana al llegar a la meta (por defecto 200, configurable en Ajustes).',
     rule_winner: 'Solo el equipo ganador de cada jugada anota; el otro recibe 0.',
-    rule_paso: 'Paso Corrido: bono adicional para el equipo elegido. Puedes apilar varios en una jugada.',
+    rule_paso: 'Bonos: Paso Corrido (CORRIDO) y +10 son extras que sumas a la jugada antes de tocar el botón +. Puedes apilar varios.',
     rule_edit: 'Toca una jugada en la tabla para editar o borrar.',
     how_to_use: 'Cómo usar',
-    use_edit: 'Toca el lápiz junto a un nombre para editarlo.',
-    use_score: 'Ingresa los puntos en las casillas y toca AÑADIR.',
-    use_paso: 'Toca P. CORRIDO y elige el equipo. Toca de nuevo para apilar más.',
+    use_edit: 'Toca cualquier nombre de equipo o jugador para editarlo. Toca el icono de lápiz junto al valor.',
+    use_score: 'Ingresa los puntos del equipo ganador en su casilla y toca el botón + (AÑADIR) para registrar la jugada.',
+    use_paso: 'Toca CORRIDO y elige el equipo. Cada toque suma un bono que se aplica a la próxima jugada.',
     use_share: 'Toca el botón compartir para enviar la imagen del juego.',
     use_history: 'Toca el reloj para ver juegos guardados.',
     privacy: 'Privacidad',
@@ -86,14 +98,32 @@ const STRINGS = {
     up_to_date: 'Estás al día. No hay actualizaciones nuevas.',
     update_failed: 'No se pudo buscar actualizaciones.',
     share_section: 'Cómo compartir un juego',
-    share_step1: 'Toca el icono compartir (↗︎) arriba a la derecha mientras juegas.',
+    share_step1: 'Toca el icono compartir arriba a la derecha mientras juegas. Genera una imagen JPG instantánea.',
     share_step2: 'La app crea una imagen JPG con todas las jugadas, los totales y el ganador.',
-    share_step3: 'Se abre el menú compartir nativo: enví a WhatsApp, Mensajes, Email o guarda en Fotos.',
+    share_step3: 'Se abre el menú compartir nativo: envía a WhatsApp, Mensajes, Email o guarda en Fotos.',
     history_section: 'Ver juegos anteriores',
-    history_step1: 'Al terminar un juego, presiona "Nuevo" y la app preguntará si quieres guardarlo.',
+    history_step1: 'Al presionar "Nuevo" la app te pregunta: guardar y empezar nuevo, empezar sin guardar, o cancelar. También puedes tocar "Guardar" en cualquier momento.',
     history_step2: 'Toca el botón "Ver Anteriores" debajo del encabezado para abrir los juegos guardados.',
     history_step3: 'Cada tarjeta muestra la fecha, los equipos y el resultado. Toca una para ver el detalle jugada por jugada.',
-    history_step4: 'En el detalle puedes "Exportar texto" para enviar por email o "Compartir imagen" como JPG.',
+    history_step4: 'En el detalle puedes exportar como texto para enviar por email o compartir como imagen JPG.',
+    bonus_section: 'Bonos: Corrido y +10',
+    bonus_step1: 'Toca CORRIDO o +10 durante una jugada en curso.',
+    bonus_step2: 'Selecciona el equipo que recibe el bono. Aparece como una jugada pendiente al final de la tabla con "?" en los puntos.',
+    bonus_step3: 'Toca el botón del bono otra vez para apilar más. Cada toque suma una unidad.',
+    bonus_step4: 'Cuando termine la jugada, ingresa los puntos del ganador y toca + para confirmar. El bono se aplica a esa jugada.',
+    series_section: 'Series (mejor de 3 o 5)',
+    series_step1: 'Al tocar "Nuevo" eliges modo: un juego, mejor de 3, o mejor de 5.',
+    series_step2: 'El marcador entre los equipos cuenta los sets ganados. Se actualiza automáticamente al guardar un juego.',
+    series_step3: 'El equipo que llegue a 2 (de 3) o 3 (de 5) gana la serie.',
+    update_section: 'Actualizaciones',
+    update_step1: 'Toca "Actualizar" en el pie de página para buscar versión nueva.',
+    update_step2: 'Si está al día, verás “Última versión” en verde por unos segundos.',
+    update_step3: 'Si hay una nueva versión, la app la descarga y se reinicia automáticamente.',
+    export_section: 'Exportar juegos',
+    export_info_1: 'Desde "Ver Anteriores" toca "Exportar juegos".',
+    export_info_2: 'Marca los juegos individuales con la casilla, o usa los filtros (fechas, equipos) y toca "Seleccionar todos".',
+    export_info_3: 'Elige CSV (texto, ideal para hojas de cálculo) o JPG (imágenes individuales).',
+    export_info_4: 'Se abre el menú compartir del sistema para enviarlos.',
     save_game: 'Guardar',
     view_previous: 'Ver Anteriores',
     saved_short: 'Guardado',
@@ -155,6 +185,19 @@ const STRINGS = {
     new_best_of_3: 'Mejor de 3',
     new_best_of_5: 'Mejor de 5',
     selected_only: 'Solo seleccionados',
+    close: 'Cerrar',
+    clear_all_bonus: 'Quitar todos los bonos',
+    csv_date: 'Fecha',
+    csv_team_a: 'Equipo A',
+    csv_players_a: 'Jugadores A',
+    csv_team_b: 'Equipo B',
+    csv_players_b: 'Jugadores B',
+    csv_total_a: 'Total A',
+    csv_total_b: 'Total B',
+    csv_winner: 'Ganador',
+    csv_rounds: 'Jugadas',
+    csv_detail: 'Detalle',
+    text_export_title: 'DOMINÓ',
   },
   en: {
     new: 'New',
@@ -200,12 +243,12 @@ const STRINGS = {
     rule_teams: 'Each team has 2 players.',
     rule_target: 'First to reach the target wins (default 200, set in Settings).',
     rule_winner: 'Only the round winner scores; the other team gets 0.',
-    rule_paso: 'Paso Corrido: extra bonus for the chosen team. You can stack several in one round.',
+    rule_paso: 'Bonuses: Paso Corrido (CORRIDO) and +10 are extras you stack before hitting + (ADD). Multiple stacks per round are allowed.',
     rule_edit: 'Tap a round in the table to edit or delete.',
     how_to_use: 'How to use',
-    use_edit: 'Tap the pencil next to a name to edit it.',
-    use_score: 'Enter points in the boxes and tap ADD.',
-    use_paso: 'Tap P. CORRIDO and pick a team. Tap again to stack more.',
+    use_edit: 'Tap any team or player name to edit it. Tap the pencil icon next to a value.',
+    use_score: 'Enter the winning team\'s points and tap + (ADD) to record the round.',
+    use_paso: 'Tap CORRIDO and pick a team. Each tap stacks one bonus, applied to the next round.',
     use_share: 'Tap the share button to send a game image.',
     use_history: 'Tap the clock to see saved games.',
     privacy: 'Privacy',
@@ -232,14 +275,32 @@ const STRINGS = {
     up_to_date: "You're up to date. No new updates available.",
     update_failed: 'Update check failed.',
     share_section: 'How to share a game',
-    share_step1: 'Tap the share icon at the top right while you play.',
+    share_step1: 'Tap the share icon at the top right while you play. Generates a JPG image of the current scoreboard.',
     share_step2: 'The app generates a JPG image with all rounds, totals, and the winner.',
     share_step3: 'The native share menu opens: send via WhatsApp, Messages, Email, or save to Photos.',
     history_section: 'View previous games',
-    history_step1: 'When a game ends, tap "New" and the app will ask if you want to save it.',
+    history_step1: 'When you tap "New" the app asks: save and start new, start without saving, or cancel. You can also tap "Save" anytime.',
     history_step2: 'Tap the "View Previous" button below the header to open saved games.',
     history_step3: 'Each card shows date, teams, and result. Tap one to see round-by-round detail.',
-    history_step4: 'In the detail view, "Export text" sends the summary by email; "Share image" sends it as JPG.',
+    history_step4: 'In the detail view you can export as text for email or share as a JPG image.',
+    bonus_section: 'Bonuses: Corrido and +10',
+    bonus_step1: 'Tap CORRIDO or +10 during a round in progress.',
+    bonus_step2: 'Pick the team receiving the bonus. It appears as a pending round at the bottom of the table with "?" placeholders.',
+    bonus_step3: 'Tap the bonus button again to stack more. Each tap adds one unit.',
+    bonus_step4: 'When the round ends, enter the winner\'s points and tap + to commit. The bonus applies to that round.',
+    series_section: 'Series (best of 3 or 5)',
+    series_step1: 'Tapping "New" lets you pick a mode: single game, best of 3, or best of 5.',
+    series_step2: 'The middle scoreboard counts sets won. Auto-updates when a game is saved.',
+    series_step3: 'First team to 2 (of 3) or 3 (of 5) wins the series.',
+    update_section: 'Updates',
+    update_step1: 'Tap "Update" in the footer to check for a new version.',
+    update_step2: 'If up to date, you\'ll see “Up to date” in green briefly.',
+    update_step3: 'If a new version exists, the app downloads and reloads automatically.',
+    export_section: 'Exporting games',
+    export_info_1: 'From "View Previous" tap "Export games".',
+    export_info_2: 'Check individual games, or use filters (dates, teams) and tap "Select all".',
+    export_info_3: 'Pick CSV (text, ideal for spreadsheets) or JPG (individual images).',
+    export_info_4: 'The system share menu opens to send them.',
     save_game: 'Save',
     view_previous: 'View Previous',
     saved_short: 'Saved',
@@ -301,46 +362,19 @@ const STRINGS = {
     new_best_of_3: 'Best of 3',
     new_best_of_5: 'Best of 5',
     selected_only: 'Selected only',
-    update_btn: 'Actualizar',
-    up_to_date_short: 'Última versión',
-    suggestions: 'Sugerencias',
-    export_games: 'Exportar juegos',
-    export_format: '¿Formato?',
-    csv_format: 'CSV (texto)',
-    jpg_format: 'JPG (imágenes)',
-    export_filter: '¿Qué juegos?',
-    export_all: 'Todos',
-    export_last_7: 'Últimos 7 días',
-    export_last_30: 'Últimos 30 días',
-    export_by_team: 'Por equipo',
-    pick_team: 'Elegir equipo',
-    no_games_match: 'No hay juegos que coincidan.',
-    export_done: 'Exportado',
-    export_intro: 'Filtra los juegos que quieres exportar.',
-    export_dates: 'Fechas',
-    export_from: 'Desde',
-    export_to: 'Hasta',
-    export_any_date: 'Cualquier fecha',
-    export_team_mode: 'Equipos',
-    export_team_any: 'Cualquier equipo',
-    export_team_specific: 'Equipos específicos',
-    export_select_teams: 'Selecciona uno o más equipos',
-    export_match_mode: 'Modo',
-    export_match_any: 'Cualquier oponente',
-    export_match_only: 'Sólo entre los seleccionados',
-    export_summary: 'Resumen',
-    export_count: 'juegos coinciden',
-    export_continue: 'Continuar',
-    export_select_all: 'Seleccionar todos',
-    export_clear: 'Quitar selección',
-    export_selected_count: 'seleccionados',
-    export_filters: 'Filtros',
-    export_apply_filter: 'Aplicar filtro',
-    new_game_mode: 'Modo de juego',
-    new_single: 'Un juego',
-    new_best_of_3: 'Mejor de 3',
-    new_best_of_5: 'Mejor de 5',
-    selected_only: 'Solo seleccionados',
+    close: 'Close',
+    clear_all_bonus: 'Clear all bonuses',
+    csv_date: 'Date',
+    csv_team_a: 'Team A',
+    csv_players_a: 'Players A',
+    csv_team_b: 'Team B',
+    csv_players_b: 'Players B',
+    csv_total_a: 'Total A',
+    csv_total_b: 'Total B',
+    csv_winner: 'Winner',
+    csv_rounds: 'Rounds',
+    csv_detail: 'Detail',
+    text_export_title: 'DOMINÓ',
   },
 };
 
@@ -350,9 +384,9 @@ const DEFAULT_STATE = {
   bestOf: 1,
   setsA: 0,
   setsB: 0,
-  setHandledForRounds: -1,
-  teamA: { name: 'Nosotros', p1: 'Jugador Uno', p2: 'Jugador Dos' },
-  teamB: { name: 'Ellos', p1: 'Jugador Tres', p2: 'Jugador Cuatro' },
+  lastSavedFingerprint: null,
+  teamA: { id: createId(), name: 'Nosotros', p1: 'Jugador Uno', p2: 'Jugador Dos' },
+  teamB: { id: createId(), name: 'Ellos', p1: 'Jugador Tres', p2: 'Jugador Cuatro' },
   pasoValue: 25,
   bonus10Value: 10,
   creator: 'José Rodríguez',
@@ -381,20 +415,6 @@ const C = {
 
 const GRID_5 = '28px 1fr 38px 1fr 38px 28px';
 const GRID_5_HIST = '32px 1fr 36px 1fr 36px';
-
-// Migrate old rounds to include bonusCountA/bonusCountB
-function migrateRound(r) {
-  const bonusA = r.bonusA || 0;
-  const bonusB = r.bonusB || 0;
-  return {
-    a: r.a || 0,
-    b: r.b || 0,
-    bonusA,
-    bonusB,
-    bonusCountA: r.bonusCountA != null ? r.bonusCountA : (bonusA > 0 ? 1 : 0),
-    bonusCountB: r.bonusCountB != null ? r.bonusCountB : (bonusB > 0 ? 1 : 0),
-  };
-}
 
 export default function DominoScorekeeper() {
   const [state, setState] = useState(DEFAULT_STATE);
@@ -425,8 +445,16 @@ export default function DominoScorekeeper() {
         const v = localStorage.getItem('domino-state');
         if (v) {
           const parsed = JSON.parse(v);
+          delete parsed.setHandledForRounds;
           parsed.rounds = (parsed.rounds || []).map(migrateRound);
-          setState({ ...DEFAULT_STATE, ...parsed });
+          setState({
+            ...DEFAULT_STATE,
+            ...parsed,
+            teamA: ensureTeamId({ ...DEFAULT_STATE.teamA, ...(parsed.teamA || {}) }),
+            teamB: ensureTeamId({ ...DEFAULT_STATE.teamB, ...(parsed.teamB || {}) }),
+            setsA: Number(parsed.setsA || 0),
+            setsB: Number(parsed.setsB || 0),
+          });
         }
       } catch (e) {}
       try {
@@ -460,44 +488,11 @@ export default function DominoScorekeeper() {
     }
   }, [state.rounds.length]);
 
-  // Auto-increment set count when a winner is detected in a best-of-N series.
-  // Idempotent: setHandledForRounds tracks the last rounds.length we handled,
-  // so increment fires exactly once per completed game until rounds change.
-  useEffect(() => {
-    if (!loaded) return;
-    if (state.bestOf <= 1) return;
-    const totalA = state.rounds.reduce((s, r) => s + r.a + (r.bonusA || 0), 0);
-    const totalB = state.rounds.reduce((s, r) => s + r.b + (r.bonusB || 0), 0);
-    const w = totalA >= state.target && totalA > totalB ? 'a'
-            : totalB >= state.target && totalB > totalA ? 'b' : null;
-    if (!w) return;
-    if (state.setHandledForRounds === state.rounds.length) return; // already counted
-    const setsToWin = Math.ceil(state.bestOf / 2);
-    if (state.setsA >= setsToWin || state.setsB >= setsToWin) return; // series already over
-    setState((s) => ({
-      ...s,
-      setsA: w === 'a' ? s.setsA + 1 : s.setsA,
-      setsB: w === 'b' ? s.setsB + 1 : s.setsB,
-      setHandledForRounds: s.rounds.length,
-    }));
-  }, [state.rounds, state.bestOf, state.target, loaded]);
-
-
-  const totalA = state.rounds.reduce((s, r) => s + r.a + (r.bonusA || 0), 0);
-  const totalB = state.rounds.reduce((s, r) => s + r.b + (r.bonusB || 0), 0);
-
-  // Derive set wins from saved history matching current team names AND current bestOf.
-  // Reset clears history? No — history persists. Series-scope = current bestOf session.
-  // For simplicity, count all history games where these exact team names appear.
-  const histSetsA = history.filter(g => g.teamA?.name === state.teamA.name && g.teamB?.name === state.teamB.name && g.winner === state.teamA.name).length
-                  + history.filter(g => g.teamB?.name === state.teamA.name && g.teamA?.name === state.teamB.name && g.winner === state.teamA.name).length;
-  const histSetsB = history.filter(g => g.teamA?.name === state.teamA.name && g.teamB?.name === state.teamB.name && g.winner === state.teamB.name).length
-                  + history.filter(g => g.teamB?.name === state.teamA.name && g.teamA?.name === state.teamB.name && g.winner === state.teamB.name).length;
-  const liveSetsA = state.setsA + histSetsA;
-  const liveSetsB = state.setsB + histSetsB;
+  const { totalA, totalB } = roundTotals(state.rounds);
+  const currentWinnerSide = winnerSide({ totalA, totalB, target: state.target });
   const winner =
-    totalA >= state.target && totalA > totalB ? state.teamA.name :
-    totalB >= state.target && totalB > totalA ? state.teamB.name : null;
+    currentWinnerSide === 'a' ? state.teamA.name :
+    currentWinnerSide === 'b' ? state.teamB.name : null;
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }));
   const updateTeam = (team, patch) => setState((s) => ({ ...s, [team]: { ...s[team], ...patch } }));
@@ -573,18 +568,8 @@ export default function DominoScorekeeper() {
     }));
   };
 
-  const resetGame = () => {
-    setState((s) => {
-      const setsToWin = Math.ceil(s.bestOf / 2);
-      const seriesOver = s.setsA >= setsToWin || s.setsB >= setsToWin;
-      return {
-        ...s,
-        rounds: [],
-        setHandledForRounds: -1,
-        setsA: seriesOver ? 0 : s.setsA,
-        setsB: seriesOver ? 0 : s.setsB,
-      };
-    });
+  const resetGame = (nextBestOf = state.bestOf) => {
+    setState((s) => ({ ...applyModeChange(s, nextBestOf), rounds: [], lastSavedFingerprint: null }));
     setScoreA('');
     setScoreB('');
     clearAllPending();
@@ -594,33 +579,89 @@ export default function DominoScorekeeper() {
     setConfirmingNew(true);
   };
 
-  const handleSaveAndNew = () => {
-    saveCurrentToHistory();
-    resetGame();
+  const buildHistoryEntry = (gameState, entryBestOf, totals, winnerName, fingerprint, setsAfter) => ({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    teamA: { ...gameState.teamA },
+    teamB: { ...gameState.teamB },
+    target: gameState.target,
+    pasoValue: gameState.pasoValue,
+    bonus10Value: gameState.bonus10Value,
+    bestOf: entryBestOf,
+    rounds: [...gameState.rounds],
+    totalA: totals.totalA,
+    totalB: totals.totalB,
+    winner: winnerName,
+    setsAAfterGame: setsAfter.setsA,
+    setsBAfterGame: setsAfter.setsB,
+    fingerprint,
+  });
+
+  const handleSaveAndNew = (nextBestOf = state.bestOf) => {
+    const entryBestOf = Number(nextBestOf) || 1;
+    const modeChanged = state.bestOf !== entryBestOf;
+    const totals = roundTotals(state.rounds);
+    const winningSide = winnerSide({ totalA: totals.totalA, totalB: totals.totalB, target: state.target });
+    const winnerName = winningSide === 'a' ? state.teamA.name : winningSide === 'b' ? state.teamB.name : null;
+    const fingerprint = saveFingerprint({ rounds: state.rounds, totalA: totals.totalA, totalB: totals.totalB });
+    const duplicate = isDuplicateSave(history, fingerprint) && state.lastSavedFingerprint === fingerprint;
+    const shouldSave = state.rounds.length > 0 && !duplicate;
+    const setsAfter = (!modeChanged && shouldSave)
+      ? incrementSets({ bestOf: entryBestOf, setsA: state.setsA, setsB: state.setsB, winner: winningSide })
+      : { setsA: state.setsA, setsB: state.setsB };
+
+    if (shouldSave) {
+      setHistory((h) => [
+        buildHistoryEntry(state, entryBestOf, totals, winnerName, fingerprint, setsAfter),
+        ...h,
+      ]);
+    }
+
+    setState((s) => {
+      const next = applyModeChange(s, entryBestOf);
+      return {
+        ...next,
+        rounds: [],
+        lastSavedFingerprint: null,
+        setsA: modeChanged || entryBestOf === 1 ? 0 : setsAfter.setsA,
+        setsB: modeChanged || entryBestOf === 1 ? 0 : setsAfter.setsB,
+      };
+    });
+    setScoreA('');
+    setScoreB('');
+    clearAllPending();
     setConfirmingNew(false);
   };
 
-  const handleDiscardAndNew = () => {
-    resetGame();
+  const handleDiscardAndNew = (nextBestOf = state.bestOf) => {
+    resetGame(nextBestOf);
     setConfirmingNew(false);
   };
 
   const saveCurrentToHistory = () => {
-    if (state.rounds.length === 0) return;
-    const entry = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      teamA: { ...state.teamA },
-      teamB: { ...state.teamB },
-      target: state.target,
-      pasoValue: state.pasoValue,
+    if (state.rounds.length === 0) return false;
+    const totals = roundTotals(state.rounds);
+    const winningSide = winnerSide({ totalA: totals.totalA, totalB: totals.totalB, target: state.target });
+    const winnerName = winningSide === 'a' ? state.teamA.name : winningSide === 'b' ? state.teamB.name : null;
+    const fingerprint = saveFingerprint({ rounds: state.rounds, totalA: totals.totalA, totalB: totals.totalB });
+    if (isDuplicateSave(history, fingerprint) && state.lastSavedFingerprint === fingerprint) return false;
+
+    const setsAfter = incrementSets({
       bestOf: state.bestOf,
-      rounds: [...state.rounds],
-      totalA,
-      totalB,
-      winner,
-    };
-    setHistory((h) => [entry, ...h]);
+      setsA: state.setsA,
+      setsB: state.setsB,
+      winner: winningSide,
+    });
+    setHistory((h) => [
+      buildHistoryEntry(state, state.bestOf, totals, winnerName, fingerprint, setsAfter),
+      ...h,
+    ]);
+    if (setsAfter.setsA !== state.setsA || setsAfter.setsB !== state.setsB) {
+      setState((s) => ({ ...s, ...setsAfter, lastSavedFingerprint: fingerprint }));
+    } else {
+      setState((s) => ({ ...s, lastSavedFingerprint: fingerprint }));
+    }
+    return true;
   };
 
   const deleteHistoryGame = (id) => {
@@ -756,8 +797,8 @@ export default function DominoScorekeeper() {
           <TeamRow
             t={t}
             state={state}
-            setsA={liveSetsA}
-            setsB={liveSetsB}
+            setsA={state.setsA}
+            setsB={state.setsB}
             editingField={editingField}
             setEditingField={setEditingField}
             updateTeam={updateTeam}
@@ -844,7 +885,6 @@ export default function DominoScorekeeper() {
           onSaveAndNew={handleSaveAndNew}
           onDiscardAndNew={handleDiscardAndNew}
           onCancel={() => setConfirmingNew(false)}
-          setBestOf={(n) => update({ bestOf: n, setsA: 0, setsB: 0 })}
         />
       )}
 
@@ -1152,7 +1192,7 @@ function GameView(p) {
                     onClick={clearAllPending}
                     className="active:scale-90"
                     style={{ color: C.amber, margin: '0 auto' }}
-                    aria-label="quitar todos"
+                    aria-label={t.clear_all_bonus}
                   >
                     <X size={14} />
                   </button>
@@ -1333,61 +1373,6 @@ function CompactTeamCard({ team, teamKey, accent, editingField, setEditingField,
   );
 }
 
-function TeamColumn({ team, teamKey, accent, editingField, setEditingField, updateTeam, sets, bestOf }) {
-  const fieldKey = (f) => `${teamKey}.${f}`;
-  const showSets = bestOf > 1;
-  const setsToWin = Math.ceil(bestOf / 2);
-  return (
-    <div className="px-2 py-1.5 rounded-lg text-center" style={{ background: 'white', border: `2px solid ${accent}` }}>
-      <div className="flex items-center justify-center gap-1.5">
-        <EditableLine
-          value={team.name}
-          editing={editingField === fieldKey('name')}
-          onEdit={() => setEditingField(fieldKey('name'))}
-          onSave={() => setEditingField(null)}
-          onChange={(v) => updateTeam(teamKey, { name: v })}
-          size="lg" accent={accent}
-        />
-        {showSets && (
-          <span
-            className="font-bold tabular-nums"
-            style={{
-              fontFamily: '"Bebas Neue", sans-serif',
-              fontSize: '14px',
-              color: accent,
-              background: '#f1f5f9',
-              padding: '2px 6px',
-              borderRadius: '6px',
-              letterSpacing: '0.02em',
-            }}
-          >
-            {sets}/{setsToWin}
-          </span>
-        )}
-      </div>
-      <div className="flex justify-center gap-2 mt-0.5">
-        <EditableLine
-          value={team.p1}
-          editing={editingField === fieldKey('p1')}
-          onEdit={() => setEditingField(fieldKey('p1'))}
-          onSave={() => setEditingField(null)}
-          onChange={(v) => updateTeam(teamKey, { p1: v })}
-          size="sm" accent={accent}
-        />
-        <span style={{ color: C.textLight, fontSize: '10px' }}>·</span>
-        <EditableLine
-          value={team.p2}
-          editing={editingField === fieldKey('p2')}
-          onEdit={() => setEditingField(fieldKey('p2'))}
-          onSave={() => setEditingField(null)}
-          onChange={(v) => updateTeam(teamKey, { p2: v })}
-          size="sm" accent={accent}
-        />
-      </div>
-    </div>
-  );
-}
-
 function EditableLine({ value, editing, onEdit, onSave, onChange, size, accent }) {
   const styles = size === 'lg'
     ? { fontSize: '15px', fontWeight: 700, color: accent, fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.03em' }
@@ -1415,38 +1400,6 @@ function EditableLine({ value, editing, onEdit, onSave, onChange, size, accent }
   );
 }
 
-function PendingBonus({ paso, ten, pasoValue, tenValue, onClear }) {
-  const hasAny = paso > 0 || ten > 0;
-  if (!hasAny) {
-    return <div />;
-  }
-  const parts = [];
-  if (ten > 0) parts.push({ text: `+${ten * tenValue}${ten > 1 ? `×${ten}` : ''}`, color: C.green });
-  if (paso > 0) parts.push({ text: `+${paso * pasoValue}${paso > 1 ? `×${paso}` : ''}`, color: C.amber });
-  return (
-    <button
-      onClick={onClear}
-      className="flex items-center justify-center gap-1 active:scale-95 transition rounded"
-      style={{
-        background: '#fef3c7',
-        border: `1px dashed ${C.amber}`,
-        padding: '2px 6px',
-        fontFamily: '"Bebas Neue", sans-serif',
-        fontSize: '13px',
-        letterSpacing: '0.03em',
-      }}
-      aria-label="quitar bono"
-    >
-      {parts.map((part, i) => (
-        <span key={i} style={{ color: part.color, fontWeight: 700 }}>
-          {part.text}{i < parts.length - 1 ? ',' : ''}
-        </span>
-      ))}
-      <X size={11} style={{ color: C.textLight, marginLeft: '2px' }} />
-    </button>
-  );
-}
-
 function ScoreBox({ value, onChange, onEnter, accent }) {
   return (
     <input
@@ -1465,12 +1418,9 @@ function ScoreBox({ value, onChange, onEnter, accent }) {
 }
 
 // =================== NEW GAME MODAL ===================
-function NewGameModal({ t, state, roundCount, onSaveAndNew, onDiscardAndNew, onCancel, setBestOf }) {
+function NewGameModal({ t, state, roundCount, onSaveAndNew, onDiscardAndNew, onCancel }) {
   const [selectedMode, setSelectedMode] = useState(state.bestOf || 1);
-  const apply = (action) => {
-    setBestOf(selectedMode);
-    action();
-  };
+  const apply = (action) => action(selectedMode);
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', paddingTop: 'env(safe-area-inset-top, 0)' }}>
       <div className="w-full max-w-sm rounded-xl p-4 max-h-[85vh] overflow-y-auto" style={{ background: 'white' }}>
@@ -1558,6 +1508,8 @@ function EditRoundModal({ t, state, round, onSave, onDelete, onClose }) {
   const [b, setB] = useState(String(round.b || 0));
   const [countA, setCountA] = useState(round.bonusCountA || 0);
   const [countB, setCountB] = useState(round.bonusCountB || 0);
+  const [tenCountA, setTenCountA] = useState(round.tenCountA || 0);
+  const [tenCountB, setTenCountB] = useState(round.tenCountB || 0);
 
   const save = () => {
     const aNum = parseInt(a) || 0;
@@ -1567,8 +1519,10 @@ function EditRoundModal({ t, state, round, onSave, onDelete, onClose }) {
       b: bNum,
       bonusCountA: Math.max(0, countA),
       bonusCountB: Math.max(0, countB),
-      bonusA: Math.max(0, countA) * state.pasoValue,
-      bonusB: Math.max(0, countB) * state.pasoValue,
+      tenCountA: Math.max(0, tenCountA),
+      tenCountB: Math.max(0, tenCountB),
+      bonusA: bonusTotal({ pasoCount: countA, tenCount: tenCountA, pasoValue: state.pasoValue, bonus10Value: state.bonus10Value }),
+      bonusB: bonusTotal({ pasoCount: countB, tenCount: tenCountB, pasoValue: state.pasoValue, bonus10Value: state.bonus10Value }),
     });
   };
 
@@ -1588,7 +1542,9 @@ function EditRoundModal({ t, state, round, onSave, onDelete, onClose }) {
             accent={C.red}
             score={a} setScore={setA}
             count={countA} setCount={setCountA}
+            tenCount={tenCountA} setTenCount={setTenCountA}
             pasoValue={state.pasoValue}
+            tenValue={state.bonus10Value}
             t={t}
           />
           <EditTeamPanel
@@ -1596,7 +1552,9 @@ function EditRoundModal({ t, state, round, onSave, onDelete, onClose }) {
             accent={C.blue}
             score={b} setScore={setB}
             count={countB} setCount={setCountB}
+            tenCount={tenCountB} setTenCount={setTenCountB}
             pasoValue={state.pasoValue}
+            tenValue={state.bonus10Value}
             t={t}
           />
         </div>
@@ -1614,7 +1572,7 @@ function EditRoundModal({ t, state, round, onSave, onDelete, onClose }) {
   );
 }
 
-function EditTeamPanel({ label, accent, score, setScore, count, setCount, pasoValue, t }) {
+function EditTeamPanel({ label, accent, score, setScore, count, setCount, tenCount, setTenCount, pasoValue, tenValue, t }) {
   return (
     <div className="rounded-lg p-2" style={{ border: `2px solid ${accent}`, background: 'white' }}>
       <div className="text-center text-xs font-bold mb-1" style={{ color: accent, fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}>
@@ -1635,6 +1593,14 @@ function EditTeamPanel({ label, accent, score, setScore, count, setCount, pasoVa
           {count > 0 ? `+${count * pasoValue} ×${count}` : '—'}
         </div>
         <button onClick={() => setCount(count + 1)} className="w-7 h-7 rounded font-bold active:scale-90" style={{ background: C.amber, color: 'white' }}>+</button>
+      </div>
+      <div className="text-[9px] mb-1 mt-2 text-center" style={{ color: C.textLight }}>{t.bonus_10}</div>
+      <div className="grid grid-cols-[auto_1fr_auto] gap-1 items-center">
+        <button onClick={() => setTenCount(Math.max(0, tenCount - 1))} className="w-7 h-7 rounded font-bold active:scale-90" style={{ background: '#dcfce7', color: C.green }}>−</button>
+        <div className="text-center font-bold" style={{ color: C.green, fontFamily: '"Bebas Neue", sans-serif', fontSize: '15px' }}>
+          {tenCount > 0 ? `+${tenCount * tenValue} ×${tenCount}` : '—'}
+        </div>
+        <button onClick={() => setTenCount(tenCount + 1)} className="w-7 h-7 rounded font-bold active:scale-90" style={{ background: C.green, color: 'white' }}>+</button>
       </div>
     </div>
   );
@@ -1672,7 +1638,7 @@ function SettingsView({ t, state, update, onClose }) {
           {[1, 3, 5].map((n) => (
             <button
               key={n}
-              onClick={() => update({ bestOf: n, setsA: 0, setsB: 0 })}
+              onClick={() => update(applyModeChange(state, n))}
               className="py-2.5 rounded-lg font-bold active:scale-95 transition text-sm"
               style={{
                 background: state.bestOf === n ? C.blue : 'white',
@@ -1780,7 +1746,7 @@ function AboutView({ t, state, onClose }) {
       </Section>
 
       <Section title={t.how_scoring}>
-        <ul className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4 }}>
+        <ul className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, listStyle: 'none', paddingLeft: 0 }}>
           <li>• {t.rule_teams}</li>
           <li>• {t.rule_target}</li>
           <li>• {t.rule_winner}</li>
@@ -1790,11 +1756,28 @@ function AboutView({ t, state, onClose }) {
       </Section>
 
       <Section title={t.how_to_use}>
-        <ul className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4 }}>
+        <ul className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, listStyle: 'none', paddingLeft: 0 }}>
           <li>• {t.use_edit}</li>
           <li>• {t.use_score}</li>
           <li>• {t.use_paso}</li>
         </ul>
+      </Section>
+
+      <Section title={t.bonus_section}>
+        <ol className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, paddingLeft: '1.1rem', listStyleType: 'decimal' }}>
+          <li>{t.bonus_step1}</li>
+          <li>{t.bonus_step2}</li>
+          <li>{t.bonus_step3}</li>
+          <li>{t.bonus_step4}</li>
+        </ol>
+      </Section>
+
+      <Section title={t.series_section}>
+        <ol className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, paddingLeft: '1.1rem', listStyleType: 'decimal' }}>
+          <li>{t.series_step1}</li>
+          <li>{t.series_step2}</li>
+          <li>{t.series_step3}</li>
+        </ol>
       </Section>
 
       <Section title={t.share_section}>
@@ -1811,6 +1794,23 @@ function AboutView({ t, state, onClose }) {
           <li>{t.history_step2}</li>
           <li>{t.history_step3}</li>
           <li>{t.history_step4}</li>
+        </ol>
+      </Section>
+
+      <Section title={t.export_section}>
+        <ol className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, paddingLeft: '1.1rem', listStyleType: 'decimal' }}>
+          <li>{t.export_info_1}</li>
+          <li>{t.export_info_2}</li>
+          <li>{t.export_info_3}</li>
+          <li>{t.export_info_4}</li>
+        </ol>
+      </Section>
+
+      <Section title={t.update_section}>
+        <ol className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4, paddingLeft: '1.1rem', listStyleType: 'decimal' }}>
+          <li>{t.update_step1}</li>
+          <li>{t.update_step2}</li>
+          <li>{t.update_step3}</li>
         </ol>
       </Section>
 
@@ -2016,7 +2016,7 @@ function ExportModal({ t, state, history, onClose }) {
             onClick={onClose}
             className="p-2 -m-1 rounded-full active:scale-90"
             style={{ background: '#f1f5f9' }}
-            aria-label="cerrar"
+            aria-label={t.close}
           >
             <X size={18} />
           </button>
@@ -2192,8 +2192,8 @@ function ExportModal({ t, state, history, onClose }) {
 function formatGamesAsCSV(games, t) {
   // Header row
   const headers = [
-    'Fecha', 'Equipo A', 'Jugadores A', 'Equipo B', 'Jugadores B',
-    'Total A', 'Total B', 'Ganador', 'Jugadas', 'Detalle',
+    t.csv_date, t.csv_team_a, t.csv_players_a, t.csv_team_b, t.csv_players_b,
+    t.csv_total_a, t.csv_total_b, t.csv_winner, t.csv_rounds, t.csv_detail,
   ];
   const lines = [headers.join(',')];
   const esc = (v) => {
@@ -2395,7 +2395,7 @@ function formatGameAsText(game, t) {
   };
 
   lines.push('==================================');
-  lines.push('       DOMINO - ' + (t.game_export_subject || 'Game'));
+  lines.push(`       ${t.text_export_title || 'DOMINÓ'} - ` + (t.game_export_subject || 'Game'));
   lines.push('==================================');
   lines.push('Fecha: ' + formatUSDateTime(new Date(game.date)));
   lines.push('');

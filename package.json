@@ -4,14 +4,20 @@
   "description": "Dominican domino scorekeeper PWA. No ads. Works offline.",
   "scripts": {
     "build": "node build.js",
-    "dev": "node build.js && python3 -m http.server -d dist 8000"
+    "dev": "node build.js && python3 -m http.server -d dist 8000",
+    "serve": "python3 -m http.server -d dist 8000",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug"
   },
   "dependencies": {
+    "lucide-react": "^0.395.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "lucide-react": "^0.395.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "esbuild": "^0.21.5"
   }
 }
