@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const BUILD_DATE = (typeof process !== 'undefined' && process.env && process.env.BUILD_DATE) || '';
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -106,6 +106,12 @@ const STRINGS = {
     best_of_5: 'Mejor de 5',
     series_won: 'GANARON LA SERIE',
     pc_pending_hint: 'P.C. agregado',
+    bonus_10: '+10',
+    bonus_pc: 'P.C.',
+    bonus_values: 'Valores de bonos',
+    paso_corrido_value: 'Paso Corrido',
+    bonus_10_value: 'Bono +10',
+    beta: 'BETA',
   },
   en: {
     new: 'New',
@@ -204,6 +210,12 @@ const STRINGS = {
     best_of_5: 'Best of 5',
     series_won: 'WON THE SERIES',
     pc_pending_hint: 'P.C. added',
+    bonus_10: '+10',
+    bonus_pc: 'P.C.',
+    bonus_values: 'Bonus values',
+    paso_corrido_value: 'Paso Corrido',
+    bonus_10_value: 'Bonus +10',
+    beta: 'BETA',
   },
 };
 
@@ -217,6 +229,7 @@ const DEFAULT_STATE = {
   teamA: { name: 'Nosotros', p1: 'Jugador Uno', p2: 'Jugador Dos' },
   teamB: { name: 'Ellos', p1: 'Jugador Tres', p2: 'Jugador Cuatro' },
   pasoValue: 25,
+  bonus10Value: 10,
   creator: 'José Rodríguez',
   feedbackEmail: DEFAULT_FEEDBACK_EMAIL,
   githubRepo: DEFAULT_GITHUB_REPO,
@@ -263,12 +276,11 @@ export default function DominoScorekeeper() {
   const [history, setHistory] = useState([]);
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
-  const [pendingBonusA, setPendingBonusA] = useState(0);
-  const [pendingBonusB, setPendingBonusB] = useState(0);
-  const [pickingBonus, setPickingBonus] = useState(false);
-  const [confirmingExtraBonus, setConfirmingExtraBonus] = useState(false);
-  const [editingPaso, setEditingPaso] = useState(false);
-  const [pasoEditValue, setPasoEditValue] = useState('25');
+  const [pendingPasoA, setPendingPasoA] = useState(0);
+  const [pendingPasoB, setPendingPasoB] = useState(0);
+  const [pendingTenA, setPendingTenA] = useState(0);
+  const [pendingTenB, setPendingTenB] = useState(0);
+  const [pickingBonusType, setPickingBonusType] = useState(null); // 'paso' | 'ten' | null
   const [editingField, setEditingField] = useState(null);
   const [editingRound, setEditingRound] = useState(null); // index of round
   const [view, setView] = useState('game');
@@ -357,60 +369,60 @@ export default function DominoScorekeeper() {
   const addRound = () => {
     const a = parseInt(scoreA) || 0;
     const b = parseInt(scoreB) || 0;
-    const totalPending = pendingBonusA + pendingBonusB;
+    const totalPending = pendingPasoA + pendingPasoB + pendingTenA + pendingTenB;
     if (a === 0 && b === 0 && totalPending === 0) return;
 
     const winnerA = a >= b;
+    const bonusA = pendingPasoA * state.pasoValue + pendingTenA * state.bonus10Value;
+    const bonusB = pendingPasoB * state.pasoValue + pendingTenB * state.bonus10Value;
     const round = {
       a: winnerA ? a : 0,
       b: winnerA ? 0 : b,
-      bonusA: pendingBonusA * state.pasoValue,
-      bonusB: pendingBonusB * state.pasoValue,
-      bonusCountA: pendingBonusA,
-      bonusCountB: pendingBonusB,
+      bonusA,
+      bonusB,
+      bonusCountA: pendingPasoA,
+      bonusCountB: pendingPasoB,
+      tenCountA: pendingTenA,
+      tenCountB: pendingTenB,
     };
     setState((s) => ({ ...s, rounds: [...s.rounds, round] }));
     setScoreA('');
     setScoreB('');
-    setPendingBonusA(0);
-    setPendingBonusB(0);
+    setPendingPasoA(0);
+    setPendingPasoB(0);
+    setPendingTenA(0);
+    setPendingTenB(0);
   };
 
-  const handlePasoTap = () => {
-    const totalPending = pendingBonusA + pendingBonusB;
-    if (totalPending === 0) {
-      setPickingBonus(true);
+  // Bonus button always opens the team picker. Multiple bonuses = multiple taps.
+  const handleBonusTap = (type) => setPickingBonusType(type);
+
+  const pickBonusTeam = (team) => {
+    if (pickingBonusType === 'paso') {
+      if (team === 'a') setPendingPasoA((c) => c + 1);
+      else setPendingPasoB((c) => c + 1);
+    } else if (pickingBonusType === 'ten') {
+      if (team === 'a') setPendingTenA((c) => c + 1);
+      else setPendingTenB((c) => c + 1);
+    }
+    setPickingBonusType(null);
+  };
+
+  const clearPendingBonusForTeam = (team) => {
+    if (team === 'a') {
+      setPendingPasoA(0);
+      setPendingTenA(0);
     } else {
-      setConfirmingExtraBonus(true);
+      setPendingPasoB(0);
+      setPendingTenB(0);
     }
   };
 
-  const pickBonusTeam = (team) => {
-    if (team === 'a') setPendingBonusA((c) => c + 1);
-    else setPendingBonusB((c) => c + 1);
-    setPickingBonus(false);
-    setConfirmingExtraBonus(false);
-  };
-
-  const confirmAddExtra = () => {
-    setConfirmingExtraBonus(false);
-    setPickingBonus(true);
-  };
-
-  const clearPendingBonus = () => {
-    setPendingBonusA(0);
-    setPendingBonusB(0);
-  };
-
-  const startEditPaso = () => {
-    setPasoEditValue(String(state.pasoValue));
-    setEditingPaso(true);
-  };
-
-  const savePaso = () => {
-    const v = parseInt(pasoEditValue) || 0;
-    update({ pasoValue: Math.max(1, v) });
-    setEditingPaso(false);
+  const clearAllPending = () => {
+    setPendingPasoA(0);
+    setPendingPasoB(0);
+    setPendingTenA(0);
+    setPendingTenB(0);
   };
 
   const deleteRound = (i) => setState((s) => ({ ...s, rounds: s.rounds.filter((_, idx) => idx !== i) }));
@@ -436,7 +448,7 @@ export default function DominoScorekeeper() {
     });
     setScoreA('');
     setScoreB('');
-    clearPendingBonus();
+    clearAllPending();
   };
 
   const newGame = () => {
@@ -551,6 +563,9 @@ export default function DominoScorekeeper() {
             <h1 className="text-2xl tracking-wide leading-none" style={{ fontFamily: '"Bebas Neue", sans-serif', color: 'white', letterSpacing: '0.05em' }}>
               DOMINÓ
             </h1>
+            <span style={{ background: C.red, color: 'white', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', letterSpacing: '0.1em', fontFamily: '"Bebas Neue", sans-serif' }}>
+              {t.beta}
+            </span>
             <div className="w-1 h-1 rounded-full" style={{ background: C.red }} />
             <div className="w-1 h-1 rounded-full" style={{ background: 'white' }} />
             <div className="w-1 h-1 rounded-full" style={{ background: C.red }} />
@@ -578,7 +593,7 @@ export default function DominoScorekeeper() {
       </header>
 
       {view === 'game' && (
-        <div className="max-w-md mx-auto px-3 pt-3 grid grid-cols-2 gap-2">
+        <div className="max-w-md mx-auto px-3 pt-4 mt-1 grid grid-cols-2 gap-2">
           <button
             onClick={saveCurrentGame}
             className="flex items-center justify-center gap-2 py-3 rounded-lg font-bold active:scale-95 transition"
@@ -622,15 +637,13 @@ export default function DominoScorekeeper() {
             winner={winner}
             scoreA={scoreA} setScoreA={setScoreA}
             scoreB={scoreB} setScoreB={setScoreB}
-            pendingBonusA={pendingBonusA} pendingBonusB={pendingBonusB}
-            pickingBonus={pickingBonus} setPickingBonus={setPickingBonus}
-            confirmingExtraBonus={confirmingExtraBonus} setConfirmingExtraBonus={setConfirmingExtraBonus}
-            handlePasoTap={handlePasoTap}
+            pendingPasoA={pendingPasoA} pendingPasoB={pendingPasoB}
+            pendingTenA={pendingTenA} pendingTenB={pendingTenB}
+            pickingBonusType={pickingBonusType} setPickingBonusType={setPickingBonusType}
+            handleBonusTap={handleBonusTap}
             pickBonusTeam={pickBonusTeam}
-            confirmAddExtra={confirmAddExtra}
-            clearPendingBonus={clearPendingBonus}
-            editingPaso={editingPaso} startEditPaso={startEditPaso} savePaso={savePaso}
-            pasoEditValue={pasoEditValue} setPasoEditValue={setPasoEditValue}
+            clearPendingBonusForTeam={clearPendingBonusForTeam}
+            clearAllPending={clearAllPending}
             editingField={editingField} setEditingField={setEditingField}
             updateTeam={updateTeam}
             addRound={addRound}
@@ -765,14 +778,14 @@ function IconBtn({ children, onClick, disabled }) {
 // =================== GAME VIEW ===================
 function GameView(p) {
   const { t, state, totalA, totalB, winner, scoreA, setScoreA, scoreB, setScoreB,
-    pendingBonusA, pendingBonusB, pickingBonus, setPickingBonus,
-    confirmingExtraBonus, setConfirmingExtraBonus,
-    handlePasoTap, pickBonusTeam, confirmAddExtra, clearPendingBonus,
-    editingPaso, startEditPaso, savePaso, pasoEditValue, setPasoEditValue,
+    pendingPasoA, pendingPasoB, pendingTenA, pendingTenB,
+    pickingBonusType, setPickingBonusType,
+    handleBonusTap, pickBonusTeam,
+    clearPendingBonusForTeam, clearAllPending,
     editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef,
     checkForUpdates, updating, update } = p;
 
-  const totalPendingBonus = pendingBonusA + pendingBonusB;
+  // (totalPendingBonus computed inline where needed)
 
   return (
     <>
@@ -809,84 +822,75 @@ function GameView(p) {
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} pendingBonus={pendingBonusA} pasoValue={state.pasoValue} onClearBonus={clearPendingBonus} t={t} />
-        <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} pendingBonus={pendingBonusB} pasoValue={state.pasoValue} onClearBonus={clearPendingBonus} t={t} />
+        <ScoreBox
+          value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red}
+          pendingPaso={pendingPasoA} pendingTen={pendingTenA}
+          pasoValue={state.pasoValue} tenValue={state.bonus10Value}
+          onClearBonus={() => clearPendingBonusForTeam('a')} t={t}
+        />
+        <ScoreBox
+          value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue}
+          pendingPaso={pendingPasoB} pendingTen={pendingTenB}
+          pasoValue={state.pasoValue} tenValue={state.bonus10Value}
+          onClearBonus={() => clearPendingBonusForTeam('b')} t={t}
+        />
       </div>
 
-      <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1.2fr auto 2fr' }}>
-        {!editingPaso ? (
-          <button
-            onClick={handlePasoTap}
-            className="font-bold py-2.5 rounded-lg active:scale-95 transition flex items-center justify-center gap-1"
-            style={{
-              background: totalPendingBonus > 0 ? C.amber : 'white',
-              color: totalPendingBonus > 0 ? 'white' : C.amber,
-              border: `2px solid ${C.amber}`,
-              fontFamily: '"Bebas Neue", sans-serif',
-              letterSpacing: '0.05em',
-              fontSize: '13px',
-            }}
-          >
-            {totalPendingBonus > 0 ? `${t.p_corrido} ×${totalPendingBonus}` : (
-              <>{t.p_corrido} <span style={{ color: C.amber }}>+{state.pasoValue}</span></>
-            )}
-          </button>
-        ) : (
-          <input
-            autoFocus
-            type="number"
-            inputMode="numeric"
-            value={pasoEditValue}
-            onChange={(e) => setPasoEditValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && savePaso()}
-            onBlur={savePaso}
-            className="font-bold py-2.5 rounded-lg text-center outline-none"
-            style={{ background: 'white', color: C.amber, border: `2px solid ${C.amber}`, fontFamily: '"Bebas Neue", sans-serif', fontSize: '17px' }}
-          />
-        )}
+      <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
         <button
-          onClick={editingPaso ? savePaso : startEditPaso}
-          className="px-2.5 rounded-lg active:scale-95 transition"
-          style={{ background: 'white', border: `2px solid ${C.borderDark}`, color: C.amber }}
+          onClick={() => handleBonusTap('paso')}
+          className="font-bold rounded-lg active:scale-95 transition flex flex-col items-center justify-center"
+          style={{
+            background: 'white',
+            color: C.amber,
+            border: `2px solid ${C.amber}`,
+            fontFamily: '"Bebas Neue", sans-serif',
+            letterSpacing: '0.03em',
+            minHeight: '64px',
+            padding: '6px',
+          }}
         >
-          {editingPaso ? <Check size={16} /> : <Pencil size={14} />}
+          <span style={{ fontSize: '14px', lineHeight: 1 }}>{t.bonus_pc}</span>
+          <span style={{ fontSize: '11px', lineHeight: 1, marginTop: '3px', opacity: 0.85 }}>+{state.pasoValue}</span>
+        </button>
+        <button
+          onClick={() => handleBonusTap('ten')}
+          className="font-bold rounded-lg active:scale-95 transition flex items-center justify-center"
+          style={{
+            background: 'white',
+            color: C.green,
+            border: `2px solid ${C.green}`,
+            fontFamily: '"Bebas Neue", sans-serif',
+            letterSpacing: '0.03em',
+            minHeight: '64px',
+            padding: '6px',
+            fontSize: '20px',
+          }}
+        >
+          +{state.bonus10Value}
         </button>
         <button
           onClick={addRound}
-          disabled={!scoreA && !scoreB && totalPendingBonus === 0}
-          className="font-bold py-2.5 rounded-lg flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-40"
-          style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.1em', fontSize: '15px' }}
+          disabled={!scoreA && !scoreB && (pendingPasoA + pendingPasoB + pendingTenA + pendingTenB) === 0}
+          className="font-bold rounded-lg flex items-center justify-center active:scale-95 transition disabled:opacity-40"
+          style={{
+            background: C.blue,
+            color: 'white',
+            fontFamily: '"Bebas Neue", sans-serif',
+            letterSpacing: '0.05em',
+            minHeight: '64px',
+            padding: '6px',
+          }}
         >
-          <Plus size={16} /> {t.add}
+          <Plus size={36} strokeWidth={3} />
         </button>
       </div>
 
-      {/* Confirmation: stacking another P. Corrido */}
-      {confirmingExtraBonus && (
-        <div className="mb-2 p-3 rounded-lg" style={{ background: C.amberLight, border: `1px solid ${C.amber}` }}>
-          <div className="text-center mb-2 text-sm font-bold" style={{ color: C.text }}>
-            {t.add_another_paso}
-            <div className="text-xs font-normal mt-0.5" style={{ color: C.textLight }}>
-              {pendingBonusA > 0 && `${state.teamA.name}: ×${pendingBonusA} `}
-              {pendingBonusB > 0 && `${state.teamB.name}: ×${pendingBonusB}`}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button onClick={() => setConfirmingExtraBonus(false)} className="py-2 rounded font-bold text-sm active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
-              {t.cancel}
-            </button>
-            <button onClick={confirmAddExtra} className="py-2 rounded font-bold text-sm active:scale-95 transition" style={{ background: C.amber, color: 'white' }}>
-              {t.yes}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Bonus team picker */}
-      {pickingBonus && (
-        <div className="mb-2 p-2 rounded-lg" style={{ background: C.amberLight, border: `1px solid ${C.amber}` }}>
+      {/* Bonus team picker — same UX whether 1st or Nth bonus tap */}
+      {pickingBonusType && (
+        <div className="mb-2 p-2 rounded-lg" style={{ background: pickingBonusType === 'paso' ? C.amberLight : '#dcfce7', border: `1px solid ${pickingBonusType === 'paso' ? C.amber : C.green}` }}>
           <div className="text-center mb-1.5 text-xs font-bold" style={{ color: C.text }}>
-            {t.paso_corrido} +{state.pasoValue} — {t.for_whom}
+            {pickingBonusType === 'paso' ? `${t.paso_corrido} +${state.pasoValue}` : `+${state.bonus10Value}`} — {t.for_whom}
           </div>
           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
             <button onClick={() => pickBonusTeam('a')} className="py-2 rounded font-bold text-sm active:scale-95 transition" style={{ background: C.red, color: 'white' }}>
@@ -896,7 +900,7 @@ function GameView(p) {
               {state.teamB.name}
             </button>
           </div>
-          <button onClick={() => setPickingBonus(false)} className="w-full py-1 rounded text-xs active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
+          <button onClick={() => setPickingBonusType(null)} className="w-full py-1 rounded text-xs active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
             {t.cancel}
           </button>
         </div>
@@ -938,9 +942,9 @@ function GameView(p) {
                 style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
               >
                 <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
-                <ScoreSlot value={r.a} color={C.red} />
+                <ScoreSlot value={r.a} color={C.red} showShoe={r.a === 0 && r.b > 0} />
                 <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-                <ScoreSlot value={r.b} color={C.blue} />
+                <ScoreSlot value={r.b} color={C.blue} showShoe={r.b === 0 && r.a > 0} />
                 <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
                 <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
               </button>
@@ -980,7 +984,10 @@ function GameView(p) {
   );
 }
 
-function ScoreSlot({ value, color }) {
+function ScoreSlot({ value, color, showShoe }) {
+  if (value === 0 && showShoe) {
+    return <span style={{ fontSize: '18px', lineHeight: 1 }}>👞</span>;
+  }
   return (
     <div className="text-lg font-bold tabular-nums" style={{ color: value > 0 ? color : C.textLight, fontFamily: '"Bebas Neue", sans-serif', opacity: value > 0 ? 1 : 0.4 }}>
       {value}
@@ -1086,37 +1093,50 @@ function EditableLine({ value, editing, onEdit, onSave, onChange, size, accent }
   );
 }
 
-function ScoreBox({ value, onChange, onEnter, accent, pendingBonus, pasoValue, onClearBonus, t }) {
-  const totalBonus = pendingBonus * pasoValue;
-  const hasBonus = pendingBonus > 0;
+function ScoreBox({ value, onChange, onEnter, accent, pendingPaso, pendingTen, pasoValue, tenValue, onClearBonus, t }) {
+  const hasBonus = pendingPaso > 0 || pendingTen > 0;
+  const tenTotal = pendingTen * tenValue;
+  const pasoTotal = pendingPaso * pasoValue;
+  const parts = [];
+  if (value && value !== '0') parts.push({ text: value, color: accent });
+  if (pendingTen > 0) parts.push({ text: `+${tenTotal}${pendingTen > 1 ? `×${pendingTen}` : ''}`, color: C.green });
+  if (pendingPaso > 0) parts.push({ text: `+${pasoTotal}${pendingPaso > 1 ? `×${pendingPaso}` : ''}`, color: C.amber });
   return (
     <div className="relative">
       <input
-        type="number" inputMode="numeric" placeholder="0"
+        type="number" inputMode="numeric" placeholder={hasBonus ? '' : '0'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onEnter()}
-        className="w-full rounded-lg px-2 py-3 text-3xl text-center font-bold outline-none transition"
+        className="w-full rounded-lg px-2 text-center font-bold outline-none transition"
         style={{
           border: `2px solid ${hasBonus ? C.amber : value ? accent : C.borderDark}`,
           color: accent, background: 'white', fontFamily: '"Bebas Neue", sans-serif',
+          fontSize: '32px', height: '64px',
+          opacity: hasBonus ? 0 : 1,
         }}
       />
       {hasBonus && (
         <div
-          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm"
-          style={{ background: C.amber, color: 'white', fontFamily: '"Bebas Neue", sans-serif', border: '1px solid white' }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none px-2"
+          style={{ fontFamily: '"Bebas Neue", sans-serif', flexWrap: 'wrap', gap: '4px' }}
         >
-          <span>+{totalBonus}{pendingBonus > 1 ? ` ×${pendingBonus}` : ''} {t.pc_pending_hint}</span>
-          <button
-            onClick={onClearBonus}
-            className="active:scale-90"
-            style={{ color: 'white', display: 'flex', alignItems: 'center' }}
-            aria-label="quitar"
-          >
-            <X size={11} />
-          </button>
+          {parts.map((part, i) => (
+            <span key={i} style={{ color: part.color, fontSize: parts.length > 2 ? '17px' : '22px', fontWeight: 'bold' }}>
+              {part.text}{i < parts.length - 1 ? ',' : ''}
+            </span>
+          ))}
         </div>
+      )}
+      {hasBonus && (
+        <button
+          onClick={onClearBonus}
+          className="absolute top-0.5 right-0.5 active:scale-90 rounded-full"
+          style={{ color: C.textLight, padding: '2px', background: 'white' }}
+          aria-label="quitar bonos"
+        >
+          <X size={12} />
+        </button>
       )}
     </div>
   );
@@ -1292,6 +1312,35 @@ function SettingsView({ t, state, update, onClose }) {
               {n === 1 ? t.best_of_1 : n === 3 ? t.best_of_3 : t.best_of_5}
             </button>
           ))}
+        </div>
+      </Section>
+
+      <Section title={t.bonus_values}>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[10px] font-semibold mb-1 text-center" style={{ color: C.amber }}>
+              {t.paso_corrido_value}
+            </div>
+            <input
+              type="number" inputMode="numeric"
+              value={state.pasoValue}
+              onChange={(e) => update({ pasoValue: Math.max(1, parseInt(e.target.value) || 1) })}
+              className="w-full text-center text-xl font-bold rounded-lg px-2 py-2 border-2 outline-none"
+              style={{ borderColor: C.amber, color: C.amber, background: 'white', fontFamily: '"Bebas Neue", sans-serif' }}
+            />
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold mb-1 text-center" style={{ color: C.green }}>
+              {t.bonus_10_value}
+            </div>
+            <input
+              type="number" inputMode="numeric"
+              value={state.bonus10Value}
+              onChange={(e) => update({ bonus10Value: Math.max(1, parseInt(e.target.value) || 1) })}
+              className="w-full text-center text-xl font-bold rounded-lg px-2 py-2 border-2 outline-none"
+              style={{ borderColor: C.green, color: C.green, background: 'white', fontFamily: '"Bebas Neue", sans-serif' }}
+            />
+          </div>
         </div>
       </Section>
 
@@ -1558,9 +1607,9 @@ function HistoryDetail({ game, t, state, onBack }) {
           <div key={i} className="items-center py-1.5 text-center"
             style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', borderBottom: `1px solid ${C.border}`, background: 'white' }}>
             <div className="text-xs" style={{ color: C.textLight }}>P{i + 1}</div>
-            <ScoreSlot value={r.a} color={C.red} />
+            <ScoreSlot value={r.a} color={C.red} showShoe={r.a === 0 && r.b > 0} />
             <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-            <ScoreSlot value={r.b} color={C.blue} />
+            <ScoreSlot value={r.b} color={C.blue} showShoe={r.b === 0 && r.a > 0} />
             <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
           </div>
         ))}

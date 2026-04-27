@@ -34,6 +34,7 @@ esbuild.buildSync({
   outdir: distDir,
   entryNames: 'app',
   loader: { '.js': 'jsx', '.jsx': 'jsx' },
+  charset: 'utf8',
   jsx: 'automatic',
   define: {
     'process.env.NODE_ENV': '"production"',
