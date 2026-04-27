@@ -15,7 +15,7 @@ import {
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.21';
+const APP_VERSION = '0.0.22';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 
@@ -815,7 +815,12 @@ export default function DominoScorekeeper() {
 
       <header className="app-header px-3 pb-3" style={{ background: C.blue }}>
         <div className="flex items-center justify-between max-w-md mx-auto">
-          <div className="flex flex-col">
+          <button
+            onClick={() => setView('game')}
+            className="flex flex-col text-left active:opacity-70 transition"
+            style={{ background: 'transparent' }}
+            aria-label="Inicio"
+          >
             <div className="flex items-baseline gap-2">
               <h1 className="text-2xl tracking-wide leading-none" style={{ fontFamily: '"Bebas Neue", sans-serif', color: 'white', letterSpacing: '0.05em' }}>
                 DOMINÓ
@@ -830,7 +835,7 @@ export default function DominoScorekeeper() {
             <div className="text-[10px] mt-0.5 tracking-wider" style={{ color: C.blueLight, fontWeight: 600, letterSpacing: '0.08em' }}>
               v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
             </div>
-          </div>
+          </button>
           <div className="flex gap-1.5">
             <IconBtn onClick={shareGame} disabled={state.rounds.length === 0}>
               <Share2 size={22} />
