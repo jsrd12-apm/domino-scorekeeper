@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -399,35 +399,17 @@ export default function DominoScorekeeper() {
   // Bonus button always opens the team picker
   const handleBonusTap = (type) => setPickingBonusType(type);
 
-  // Picking a team applies the bonus to the LAST committed round if one exists,
-  // otherwise stages it as pending for the next AÑADIR.
+  // Picking a team always stages the bonus on the NEXT round being assembled.
+  // It folds into a real round when AÑADIR fires; never modifies past rounds.
   const pickBonusTeam = (team) => {
     const type = pickingBonusType;
     setPickingBonusType(null);
-    if (state.rounds.length > 0) {
-      // Apply to existing last round
-      const bonusUnit = type === 'paso' ? state.pasoValue : state.bonus10Value;
-      const countKey = type === 'paso'
-        ? (team === 'a' ? 'bonusCountA' : 'bonusCountB')
-        : (team === 'a' ? 'tenCountA' : 'tenCountB');
-      const bonusKey = team === 'a' ? 'bonusA' : 'bonusB';
-      setState((s) => {
-        const rounds = [...s.rounds];
-        const last = { ...rounds[rounds.length - 1] };
-        last[countKey] = (last[countKey] || 0) + 1;
-        last[bonusKey] = (last[bonusKey] || 0) + bonusUnit;
-        rounds[rounds.length - 1] = last;
-        return { ...s, rounds };
-      });
+    if (type === 'paso') {
+      if (team === 'a') setPendingPasoA((c) => c + 1);
+      else setPendingPasoB((c) => c + 1);
     } else {
-      // No rounds yet — stage for the upcoming round
-      if (type === 'paso') {
-        if (team === 'a') setPendingPasoA((c) => c + 1);
-        else setPendingPasoB((c) => c + 1);
-      } else {
-        if (team === 'a') setPendingTenA((c) => c + 1);
-        else setPendingTenB((c) => c + 1);
-      }
+      if (team === 'a') setPendingTenA((c) => c + 1);
+      else setPendingTenB((c) => c + 1);
     }
   };
 
@@ -853,9 +835,14 @@ function GameView(p) {
 
 
 
-      <div className="grid grid-cols-2 gap-2 mb-2">
+      <div className="grid grid-cols-2 gap-2 mb-1">
         <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} />
         <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-2" style={{ minHeight: '20px' }}>
+        <PendingBonus paso={pendingPasoA} ten={pendingTenA} pasoValue={state.pasoValue} tenValue={state.bonus10Value} onClear={() => clearPendingBonusForTeam('a')} />
+        <PendingBonus paso={pendingPasoB} ten={pendingTenB} pasoValue={state.pasoValue} tenValue={state.bonus10Value} onClear={() => clearPendingBonusForTeam('b')} />
       </div>
 
       <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
@@ -1197,6 +1184,38 @@ function EditableLine({ value, editing, onEdit, onSave, onChange, size, accent }
     <button onClick={onEdit} className="flex items-center gap-0.5 justify-center active:opacity-70">
       <span style={styles}>{value || '...'}</span>
       <Pencil size={size === 'lg' ? 9 : 8} style={{ color: accent, opacity: 0.5 }} />
+    </button>
+  );
+}
+
+function PendingBonus({ paso, ten, pasoValue, tenValue, onClear }) {
+  const hasAny = paso > 0 || ten > 0;
+  if (!hasAny) {
+    return <div />;
+  }
+  const parts = [];
+  if (ten > 0) parts.push({ text: `+${ten * tenValue}${ten > 1 ? `×${ten}` : ''}`, color: C.green });
+  if (paso > 0) parts.push({ text: `+${paso * pasoValue}${paso > 1 ? `×${paso}` : ''}`, color: C.amber });
+  return (
+    <button
+      onClick={onClear}
+      className="flex items-center justify-center gap-1 active:scale-95 transition rounded"
+      style={{
+        background: '#fef3c7',
+        border: `1px dashed ${C.amber}`,
+        padding: '2px 6px',
+        fontFamily: '"Bebas Neue", sans-serif',
+        fontSize: '13px',
+        letterSpacing: '0.03em',
+      }}
+      aria-label="quitar bono"
+    >
+      {parts.map((part, i) => (
+        <span key={i} style={{ color: part.color, fontWeight: 700 }}>
+          {part.text}{i < parts.length - 1 ? ',' : ''}
+        </span>
+      ))}
+      <X size={11} style={{ color: C.textLight, marginLeft: '2px' }} />
     </button>
   );
 }
