@@ -15,9 +15,15 @@ import {
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.19';
+const APP_VERSION = '0.0.20';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
+
+const CONTRIBUTORS = [
+  { name: 'Daniel Rodríguez', role: 'Idea original' },
+  { name: 'Marcos Rodríguez', role: 'Hermano' },
+  { name: 'Ramón Rodríguez', role: 'Hermano' },
+];
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
 // ==============================================
@@ -63,7 +69,7 @@ const STRINGS = {
     feedback_intro: 'Envía tus ideas para mejorar la app:',
     about: 'Acerca de',
     about_intro: 'Tanteador de dominó dominicano. Sin anuncios. Funciona sin internet.',
-    about_full: 'Esta aplicación fue creada para contribuir y fomentar el juego de dominó de forma simple. No colectamos ninguna información. Los juegos permanecen en tu celular y solo recibe información del internet si el usuario desea actualizar.\n\nCreado por José Rodríguez con contribuciones de Daniel Rodríguez, quien sugirió la idea de la aplicación originalmente, y mis hermanos Marcos y Ramón.\n\nCualquier sugerencia para mejorar la aplicación es bienvenida. ¡Disfruten!',
+    about_full: 'Esta aplicación fue creada para contribuir y fomentar el juego de dominó de forma simple. No colectamos ninguna información. Los juegos permanecen en tu celular y solo recibe información del internet si el usuario desea actualizar.\n\nCreado por José Rodríguez con contribuciones del visionario Daniel Rodríguez, el arquitecto de la idea original, y mis queridos hermanos Marcos y Ramón.\n\nSugerencias para mejorar son bienvenidas. Añadiré una sección para nombrar los contribuyentes más adelante. ¡Disfruten!',
     how_scoring: 'Cómo funciona el puntaje',
     rule_teams: 'Cada equipo es de 2 jugadores.',
     rule_target: 'Se gana al llegar a la meta (por defecto 200, configurable en Ajustes).',
@@ -193,6 +199,8 @@ const STRINGS = {
     strict_mode_desc: 'Rechazar bonos que pasen la meta',
     no_caben: 'No caben',
     no_caben_hint: 'Cambia "modo estricto" en Ajustes si tu familia permite pasarse de la meta con bonos.',
+    contributors: 'Contribuyentes',
+    contributors_intro: 'Gracias a las personas que han ayudado a mejorar esta aplicación.',
     csv_date: 'Fecha',
     csv_team_a: 'Equipo A',
     csv_players_a: 'Jugadores A',
@@ -245,7 +253,7 @@ const STRINGS = {
     feedback_intro: 'Share your ideas to improve the app:',
     about: 'About',
     about_intro: 'Dominican domino scorekeeper. No ads. Works offline.',
-    about_full: 'This app was created to contribute to and encourage the game of dominoes in a simple way. We don\'t collect any information. Games stay on your phone and the app only contacts the internet if you choose to check for updates.\n\nCreated by José Rodríguez with contributions from Daniel Rodríguez, who originally suggested the idea, and my brothers Marcos and Ramón.\n\nAny suggestion to improve the app is welcome. Enjoy!',
+    about_full: 'This app was created to contribute to and encourage the game of dominoes in a simple way. We don\'t collect any information. Games stay on your phone and the app only contacts the internet if you choose to check for updates.\n\nCreated by José Rodríguez with contributions from the visionary Daniel Rodríguez, the architect of the original idea, and my dear brothers Marcos and Ramón.\n\nSuggestions for improvement are welcome. I\'ll add a contributors section later. Enjoy!',
     how_scoring: 'How scoring works',
     rule_teams: 'Each team has 2 players.',
     rule_target: 'First to reach the target wins (default 200, set in Settings).',
@@ -375,6 +383,8 @@ const STRINGS = {
     strict_mode_desc: 'Reject bonuses that overshoot the target',
     no_caben: "Won't fit",
     no_caben_hint: 'Toggle "strict mode" in Settings if your family allows bonuses to overshoot the target.',
+    contributors: 'Contributors',
+    contributors_intro: 'Thanks to the people who have helped make this app better.',
     csv_date: 'Date',
     csv_team_a: 'Team A',
     csv_players_a: 'Players A',
@@ -447,6 +457,7 @@ export default function DominoScorekeeper() {
   const [justSaved, setJustSaved] = useState(false);
   const [confirmingNew, setConfirmingNew] = useState(false);
   const [noCabenToast, setNoCabenToast] = useState(null);
+  const [showContributors, setShowContributors] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const t = STRINGS[state.lang];
@@ -804,16 +815,21 @@ export default function DominoScorekeeper() {
 
       <header className="app-header px-3 pb-3" style={{ background: C.blue }}>
         <div className="flex items-center justify-between max-w-md mx-auto">
-          <div className="flex items-baseline gap-2">
-            <h1 className="text-2xl tracking-wide leading-none" style={{ fontFamily: '"Bebas Neue", sans-serif', color: 'white', letterSpacing: '0.05em' }}>
-              DOMINÓ
-            </h1>
-            <span style={{ background: C.red, color: 'white', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', letterSpacing: '0.1em', fontFamily: '"Bebas Neue", sans-serif' }}>
-              {t.beta}
-            </span>
-            <div className="w-1 h-1 rounded-full" style={{ background: C.red }} />
-            <div className="w-1 h-1 rounded-full" style={{ background: 'white' }} />
-            <div className="w-1 h-1 rounded-full" style={{ background: C.red }} />
+          <div className="flex flex-col">
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-2xl tracking-wide leading-none" style={{ fontFamily: '"Bebas Neue", sans-serif', color: 'white', letterSpacing: '0.05em' }}>
+                DOMINÓ
+              </h1>
+              <span style={{ background: C.red, color: 'white', fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', letterSpacing: '0.1em', fontFamily: '"Bebas Neue", sans-serif' }}>
+                {t.beta}
+              </span>
+              <div className="w-1 h-1 rounded-full" style={{ background: C.red }} />
+              <div className="w-1 h-1 rounded-full" style={{ background: 'white' }} />
+              <div className="w-1 h-1 rounded-full" style={{ background: C.red }} />
+            </div>
+            <div className="text-[10px] mt-0.5 tracking-wider" style={{ color: C.blueLight, fontWeight: 600, letterSpacing: '0.08em' }}>
+              v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
+            </div>
           </div>
           <div className="flex gap-1.5">
             <IconBtn onClick={shareGame} disabled={state.rounds.length === 0}>
@@ -914,6 +930,7 @@ export default function DominoScorekeeper() {
             updating={updating}
             upToDateFlash={upToDateFlash}
             update={update}
+            onShowContributors={() => setShowContributors(true)}
           />
         )}
 
@@ -923,6 +940,13 @@ export default function DominoScorekeeper() {
           <HistoryView t={t} state={state} history={history} onDelete={deleteHistoryGame} onClose={() => setView('game')} />
         )}
       </div>
+
+      {showContributors && (
+        <ContributorsModal
+          t={t}
+          onClose={() => setShowContributors(false)}
+        />
+      )}
 
       {confirmingNew && (
         <NewGameModal
@@ -1047,7 +1071,7 @@ function GameView(p) {
     clearPendingBonusForTeam, clearAllPending,
     noCabenToast, setNoCabenToast,
     editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef,
-    checkForUpdates, updating, upToDateFlash, update } = p;
+    checkForUpdates, updating, upToDateFlash, update, onShowContributors } = p;
 
   // (totalPendingBonus computed inline where needed)
 
@@ -1208,32 +1232,21 @@ function GameView(p) {
             <div className="text-center py-6 italic text-sm" style={{ color: C.textLight }}>{t.no_rounds}</div>
           ) : (
             <>
-              {(() => {
-                // Compute cumulative totals through each round so we know if a team is still at 0
-                let cumA = 0, cumB = 0;
-                return state.rounds.map((r, i) => {
-                  cumA += r.a + (r.bonusA || 0);
-                  cumB += r.b + (r.bonusB || 0);
-                  // Shoe shown when this team's total is still 0 AND the other has scored
-                  const shoeA = cumA === 0 && cumB > 0;
-                  const shoeB = cumB === 0 && cumA > 0;
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setEditingRound(i)}
-                      className="w-full items-center py-1.5 text-center active:bg-blue-50 transition"
-                      style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
-                    >
-                      <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
-                      <ScoreSlot value={r.a} color={C.red} showShoe={shoeA} />
-                      <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-                      <ScoreSlot value={r.b} color={C.blue} showShoe={shoeB} />
-                      <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
-                      <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
-                    </button>
-                  );
-                });
-              })()}
+              {state.rounds.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => setEditingRound(i)}
+                  className="w-full items-center py-1.5 text-center active:bg-blue-50 transition"
+                  style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
+                >
+                  <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
+                  <ScoreSlot value={r.a} color={C.red} />
+                  <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
+                  <ScoreSlot value={r.b} color={C.blue} />
+                  <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
+                  <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
+                </button>
+              ))}
               {(pendingPasoA + pendingPasoB + pendingTenA + pendingTenB) > 0 && (
                 <div
                   className="w-full items-center py-1.5 text-center"
@@ -1274,24 +1287,21 @@ function GameView(p) {
 
         <div
           className="items-center py-2 text-center"
-          style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', background: C.blueDark, color: 'white' }}
+          style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', background: '#e2e8f0', color: C.text, borderTop: `2px solid ${C.blueDark}` }}
         >
-          <div className="text-[10px] font-bold tracking-wider" style={{ fontFamily: '"Bebas Neue", sans-serif' }}>{t.total}</div>
-          <div className="col-span-2 text-2xl font-bold tabular-nums" style={{ fontFamily: '"Bebas Neue", sans-serif', color: totalA > totalB ? C.gold : 'white' }}>
-            {totalA}
+          <div className="text-[10px] font-bold tracking-wider" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blueDark }}>{t.total}</div>
+          <div className="col-span-2 text-2xl font-bold tabular-nums flex items-center justify-center gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif', color: totalA > 0 ? (totalA > totalB ? C.gold : C.red) : C.textLight }}>
+            {totalA === 0 && totalB > 0 ? <span style={{ fontSize: '22px', lineHeight: 1 }}>👞</span> : totalA}
           </div>
-          <div className="col-span-2 text-2xl font-bold tabular-nums" style={{ fontFamily: '"Bebas Neue", sans-serif', color: totalB > totalA ? C.gold : 'white' }}>
-            {totalB}
+          <div className="col-span-2 text-2xl font-bold tabular-nums flex items-center justify-center gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif', color: totalB > 0 ? (totalB > totalA ? C.gold : C.blue) : C.textLight }}>
+            {totalB === 0 && totalA > 0 ? <span style={{ fontSize: '22px', lineHeight: 1 }}>👞</span> : totalB}
           </div>
           <div></div>
         </div>
       </div>
 
-      {/* Version + check for updates footer */}
-      <div className="flex items-center justify-center gap-3 mt-4 mb-1">
-        <div className="text-xs" style={{ color: C.textLight, fontWeight: 600 }}>
-          v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
-        </div>
+      {/* Action footer — Actualizar, Sugerencias, Contribuyentes */}
+      <div className="flex items-center justify-center flex-wrap gap-2 mt-4 mb-2">
         <button
           onClick={checkForUpdates}
           disabled={updating}
@@ -1325,15 +1335,92 @@ function GameView(p) {
           <Mail size={13} />
           {t.suggestions}
         </button>
+        <button
+          onClick={onShowContributors}
+          className="px-3 py-1.5 rounded-lg active:scale-95 transition flex items-center gap-1"
+          style={{
+            background: 'white',
+            color: C.blue,
+            fontWeight: 700,
+            fontSize: '12px',
+            letterSpacing: '0.05em',
+            border: `1.5px solid ${C.blue}`,
+          }}
+          aria-label={t.contributors}
+        >
+          {t.contributors}
+        </button>
       </div>
     </>
   );
 }
 
-function ScoreSlot({ value, color, showShoe }) {
-  if (value === 0 && showShoe) {
-    return <span style={{ fontSize: '18px', lineHeight: 1 }}>👞</span>;
-  }
+function ContributorsModal({ t, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{
+        background: 'rgba(0,0,0,0.5)',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
+      <div
+        className="w-full max-w-sm rounded-t-xl sm:rounded-xl flex flex-col"
+        style={{ background: 'white', maxHeight: '80vh' }}
+      >
+        <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: C.border }}>
+          <h3 className="text-lg font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.05em' }}>
+            {t.contributors}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-2 -m-1 rounded-full active:scale-90"
+            style={{ background: '#f1f5f9' }}
+            aria-label={t.close}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-4 pt-3 pb-2 text-xs" style={{ color: C.textLight, lineHeight: 1.4 }}>
+          {t.contributors_intro}
+        </div>
+        <div className="flex-1 overflow-y-auto px-2 pb-3">
+          {CONTRIBUTORS.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+              style={{ borderBottom: i < CONTRIBUTORS.length - 1 ? `1px solid ${C.border}` : 'none' }}
+            >
+              <div
+                className="flex items-center justify-center rounded-full shrink-0"
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  background: C.blue,
+                  color: 'white',
+                  fontFamily: '"Bebas Neue", sans-serif',
+                  fontSize: '16px',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {c.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold" style={{ color: C.text }}>{c.name}</div>
+                {c.role && (
+                  <div className="text-[11px]" style={{ color: C.textLight }}>{c.role}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreSlot({ value, color }) {
   return (
     <div className="text-lg font-bold tabular-nums" style={{ color: value > 0 ? color : C.textLight, fontFamily: '"Bebas Neue", sans-serif', opacity: value > 0 ? 1 : 0.4 }}>
       {value}
@@ -2428,33 +2515,24 @@ function HistoryDetail({ game, t, state, onBack }) {
           <div className="col-span-2 truncate px-1">{game.teamA.name}</div>
           <div className="col-span-2 truncate px-1">{game.teamB.name}</div>
         </div>
-        {(() => {
-          let cumA = 0, cumB = 0;
-          return game.rounds.map((r, i) => {
-            cumA += r.a + (r.bonusA || 0);
-            cumB += r.b + (r.bonusB || 0);
-            const shoeA = cumA === 0 && cumB > 0;
-            const shoeB = cumB === 0 && cumA > 0;
-            return (
-              <div key={i} className="items-center py-1.5 text-center"
-                style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', borderBottom: `1px solid ${C.border}`, background: 'white' }}>
-                <div className="text-xs" style={{ color: C.textLight }}>P{i + 1}</div>
-                <ScoreSlot value={r.a} color={C.red} showShoe={shoeA} />
-                <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-                <ScoreSlot value={r.b} color={C.blue} showShoe={shoeB} />
-                <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
-              </div>
-            );
-          });
-        })()}
-        <div className="items-center py-2 text-center"
-          style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', background: C.blueDark, color: 'white' }}>
-          <div className="text-[10px] font-bold tracking-wider" style={{ fontFamily: '"Bebas Neue", sans-serif' }}>{t.total}</div>
-          <div className="col-span-2 text-xl font-bold tabular-nums" style={{ fontFamily: '"Bebas Neue", sans-serif', color: aWon ? C.gold : 'white' }}>
-            {game.totalA}
+        {game.rounds.map((r, i) => (
+          <div key={i} className="items-center py-1.5 text-center"
+            style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', borderBottom: `1px solid ${C.border}`, background: 'white' }}>
+            <div className="text-xs" style={{ color: C.textLight }}>P{i + 1}</div>
+            <ScoreSlot value={r.a} color={C.red} />
+            <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
+            <ScoreSlot value={r.b} color={C.blue} />
+            <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
           </div>
-          <div className="col-span-2 text-xl font-bold tabular-nums" style={{ fontFamily: '"Bebas Neue", sans-serif', color: bWon ? C.gold : 'white' }}>
-            {game.totalB}
+        ))}
+        <div className="items-center py-2 text-center"
+          style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', background: '#e2e8f0', color: C.text, borderTop: `2px solid ${C.blueDark}` }}>
+          <div className="text-[10px] font-bold tracking-wider" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blueDark }}>{t.total}</div>
+          <div className="col-span-2 text-xl font-bold tabular-nums flex items-center justify-center gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif', color: game.totalA > 0 ? (aWon ? C.gold : C.red) : C.textLight }}>
+            {game.totalA === 0 && game.totalB > 0 ? <span style={{ fontSize: '20px', lineHeight: 1 }}>👞</span> : game.totalA}
+          </div>
+          <div className="col-span-2 text-xl font-bold tabular-nums flex items-center justify-center gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif', color: game.totalB > 0 ? (bWon ? C.gold : C.blue) : C.textLight }}>
+            {game.totalB === 0 && game.totalA > 0 ? <span style={{ fontSize: '20px', lineHeight: 1 }}>👞</span> : game.totalB}
           </div>
         </div>
       </div>
