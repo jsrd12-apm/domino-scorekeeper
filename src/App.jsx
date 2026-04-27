@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.1.5';
+const APP_VERSION = '0.0.17';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
@@ -145,6 +145,16 @@ const STRINGS = {
     export_summary: 'Resumen',
     export_count: 'juegos coinciden',
     export_continue: 'Continuar',
+    export_select_all: 'Seleccionar todos',
+    export_clear: 'Quitar selección',
+    export_selected_count: 'seleccionados',
+    export_filters: 'Filtros',
+    export_apply_filter: 'Aplicar filtro',
+    new_game_mode: 'Modo de juego',
+    new_single: 'Un juego',
+    new_best_of_3: 'Mejor de 3',
+    new_best_of_5: 'Mejor de 5',
+    selected_only: 'Solo seleccionados',
   },
   en: {
     new: 'New',
@@ -281,6 +291,16 @@ const STRINGS = {
     export_summary: 'Summary',
     export_count: 'games match',
     export_continue: 'Continue',
+    export_select_all: 'Select all',
+    export_clear: 'Clear',
+    export_selected_count: 'selected',
+    export_filters: 'Filters',
+    export_apply_filter: 'Apply filter',
+    new_game_mode: 'Game mode',
+    new_single: 'Single game',
+    new_best_of_3: 'Best of 3',
+    new_best_of_5: 'Best of 5',
+    selected_only: 'Selected only',
     update_btn: 'Actualizar',
     up_to_date_short: 'Última versión',
     suggestions: 'Sugerencias',
@@ -311,6 +331,16 @@ const STRINGS = {
     export_summary: 'Resumen',
     export_count: 'juegos coinciden',
     export_continue: 'Continuar',
+    export_select_all: 'Seleccionar todos',
+    export_clear: 'Quitar selección',
+    export_selected_count: 'seleccionados',
+    export_filters: 'Filtros',
+    export_apply_filter: 'Aplicar filtro',
+    new_game_mode: 'Modo de juego',
+    new_single: 'Un juego',
+    new_best_of_3: 'Mejor de 3',
+    new_best_of_5: 'Mejor de 5',
+    selected_only: 'Solo seleccionados',
   },
 };
 
@@ -455,6 +485,16 @@ export default function DominoScorekeeper() {
 
   const totalA = state.rounds.reduce((s, r) => s + r.a + (r.bonusA || 0), 0);
   const totalB = state.rounds.reduce((s, r) => s + r.b + (r.bonusB || 0), 0);
+
+  // Derive set wins from saved history matching current team names AND current bestOf.
+  // Reset clears history? No — history persists. Series-scope = current bestOf session.
+  // For simplicity, count all history games where these exact team names appear.
+  const histSetsA = history.filter(g => g.teamA?.name === state.teamA.name && g.teamB?.name === state.teamB.name && g.winner === state.teamA.name).length
+                  + history.filter(g => g.teamB?.name === state.teamA.name && g.teamA?.name === state.teamB.name && g.winner === state.teamA.name).length;
+  const histSetsB = history.filter(g => g.teamA?.name === state.teamA.name && g.teamB?.name === state.teamB.name && g.winner === state.teamB.name).length
+                  + history.filter(g => g.teamB?.name === state.teamA.name && g.teamA?.name === state.teamB.name && g.winner === state.teamB.name).length;
+  const liveSetsA = state.setsA + histSetsA;
+  const liveSetsB = state.setsB + histSetsB;
   const winner =
     totalA >= state.target && totalA > totalB ? state.teamA.name :
     totalB >= state.target && totalB > totalA ? state.teamB.name : null;
@@ -551,7 +591,6 @@ export default function DominoScorekeeper() {
   };
 
   const newGame = () => {
-    if (state.rounds.length === 0) return;
     setConfirmingNew(true);
   };
 
@@ -575,6 +614,7 @@ export default function DominoScorekeeper() {
       teamB: { ...state.teamB },
       target: state.target,
       pasoValue: state.pasoValue,
+      bestOf: state.bestOf,
       rounds: [...state.rounds],
       totalA,
       totalB,
@@ -716,6 +756,8 @@ export default function DominoScorekeeper() {
           <TeamRow
             t={t}
             state={state}
+            setsA={liveSetsA}
+            setsB={liveSetsB}
             editingField={editingField}
             setEditingField={setEditingField}
             updateTeam={updateTeam}
@@ -797,10 +839,12 @@ export default function DominoScorekeeper() {
       {confirmingNew && (
         <NewGameModal
           t={t}
+          state={state}
           roundCount={state.rounds.length}
           onSaveAndNew={handleSaveAndNew}
           onDiscardAndNew={handleDiscardAndNew}
           onCancel={() => setConfirmingNew(false)}
+          setBestOf={(n) => update({ bestOf: n, setsA: 0, setsB: 0 })}
         />
       )}
 
@@ -1203,7 +1247,7 @@ function BonusSlot({ value, count }) {
   );
 }
 
-function TeamRow({ t, state, editingField, setEditingField, updateTeam }) {
+function TeamRow({ t, state, setsA, setsB, editingField, setEditingField, updateTeam }) {
   const setsToWin = Math.ceil(state.bestOf / 2);
   const showSetsToWin = state.bestOf > 1;
   return (
@@ -1222,9 +1266,9 @@ function TeamRow({ t, state, editingField, setEditingField, updateTeam }) {
           {t.set_score}
         </span>
         <div className="flex items-baseline gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif' }}>
-          <span style={{ fontSize: '22px', color: C.red, fontWeight: 700 }}>{state.setsA}</span>
+          <span style={{ fontSize: '22px', color: C.red, fontWeight: 700 }}>{setsA}</span>
           <span style={{ fontSize: '16px', color: C.textLight }}>-</span>
-          <span style={{ fontSize: '22px', color: C.blue, fontWeight: 700 }}>{state.setsB}</span>
+          <span style={{ fontSize: '22px', color: C.blue, fontWeight: 700 }}>{setsB}</span>
         </div>
         {showSetsToWin && (
           <span style={{ fontSize: '9px', color: C.textLight, marginTop: '-2px' }}>
@@ -1421,31 +1465,80 @@ function ScoreBox({ value, onChange, onEnter, accent }) {
 }
 
 // =================== NEW GAME MODAL ===================
-function NewGameModal({ t, roundCount, onSaveAndNew, onDiscardAndNew, onCancel }) {
+function NewGameModal({ t, state, roundCount, onSaveAndNew, onDiscardAndNew, onCancel, setBestOf }) {
+  const [selectedMode, setSelectedMode] = useState(state.bestOf || 1);
+  const apply = (action) => {
+    setBestOf(selectedMode);
+    action();
+  };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: 'white' }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', paddingTop: 'env(safe-area-inset-top, 0)' }}>
+      <div className="w-full max-w-sm rounded-xl p-4 max-h-[85vh] overflow-y-auto" style={{ background: 'white' }}>
         <h3 className="text-lg font-bold mb-1 text-center" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.05em' }}>
           {t.confirm_new_title}
         </h3>
-        <p className="text-xs mb-4 text-center" style={{ color: C.textLight }}>
-          {roundCount} {t.confirm_new_in_progress}
-        </p>
+        {roundCount > 0 && (
+          <p className="text-xs mb-3 text-center" style={{ color: C.textLight }}>
+            {roundCount} {t.confirm_new_in_progress}
+          </p>
+        )}
+
+        {/* Game mode selector */}
+        <div className="mb-3">
+          <div className="text-[10px] font-semibold mb-1.5 text-center" style={{ color: C.textLight, letterSpacing: '0.15em' }}>
+            {t.new_game_mode.toUpperCase()}
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { value: 1, label: t.new_single },
+              { value: 3, label: t.new_best_of_3 },
+              { value: 5, label: t.new_best_of_5 },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setSelectedMode(opt.value)}
+                className="py-2 rounded-lg font-bold text-xs active:scale-95 transition"
+                style={{
+                  background: selectedMode === opt.value ? C.blue : 'white',
+                  color: selectedMode === opt.value ? 'white' : C.text,
+                  border: `2px solid ${selectedMode === opt.value ? C.blue : C.border}`,
+                  fontFamily: '"Bebas Neue", sans-serif',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2">
-          <button
-            onClick={onSaveAndNew}
-            className="py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition"
-            style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
-          >
-            <Save size={16} /> {t.save_and_new}
-          </button>
-          <button
-            onClick={onDiscardAndNew}
-            className="py-3 rounded-lg font-bold text-sm active:scale-95 transition"
-            style={{ background: 'white', color: C.red, border: `2px solid ${C.red}`, fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
-          >
-            {t.discard_and_new}
-          </button>
+          {roundCount > 0 ? (
+            <>
+              <button
+                onClick={() => apply(onSaveAndNew)}
+                className="py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition"
+                style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+              >
+                <Save size={16} /> {t.save_and_new}
+              </button>
+              <button
+                onClick={() => apply(onDiscardAndNew)}
+                className="py-3 rounded-lg font-bold text-sm active:scale-95 transition"
+                style={{ background: 'white', color: C.red, border: `2px solid ${C.red}`, fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+              >
+                {t.discard_and_new}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => apply(onDiscardAndNew)}
+              className="py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition"
+              style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+            >
+              {t.new}
+            </button>
+          )}
           <button
             onClick={onCancel}
             className="py-2 rounded-lg font-medium text-sm active:scale-95 transition"
@@ -1480,8 +1573,8 @@ function EditRoundModal({ t, state, round, onSave, onDelete, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="w-full max-w-md rounded-xl p-4" style={{ background: 'white' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="w-full max-w-md rounded-xl p-4 max-h-[85vh] overflow-y-auto" style={{ background: 'white' }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.08em' }}>
             {t.edit_round}
@@ -1788,61 +1881,81 @@ function HistoryView({ t, state, history, onDelete, onClose }) {
 }
 
 function ExportModal({ t, state, history, onClose }) {
-  // Date defaults: from = oldest game's date, to = newest
-  const sortedDates = history.map((g) => g.date).sort();
-  const minDate = sortedDates[0] ? sortedDates[0].slice(0, 10) : '';
-  const maxDate = sortedDates[sortedDates.length - 1] ? sortedDates[sortedDates.length - 1].slice(0, 10) : '';
-
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [teamMode, setTeamMode] = useState('any');     // 'any' | 'specific'
-  const [selectedTeams, setSelectedTeams] = useState([]); // names
-  const [matchMode, setMatchMode] = useState('any');   // 'any' | 'only'
-  const [format, setFormat] = useState(null);          // 'csv' | 'jpg' (final pick)
-  const [busy, setBusy] = useState(false);
-
+  // All teams across history, sorted
   const allTeamNames = Array.from(new Set(
     history.flatMap((g) => [g.teamA?.name, g.teamB?.name]).filter(Boolean)
   )).sort();
 
-  const toggleTeam = (name) => {
-    setSelectedTeams((s) => s.includes(name) ? s.filter((n) => n !== name) : [...s, name]);
-  };
+  // Date bounds
+  const sortedDates = history.map((g) => g.date).sort();
+  const minDate = sortedDates[0] ? sortedDates[0].slice(0, 10) : '';
+  const maxDate = sortedDates[sortedDates.length - 1] ? sortedDates[sortedDates.length - 1].slice(0, 10) : '';
 
-  const matchedGames = history.filter((g) => {
-    // Date filter
-    const gDate = g.date.slice(0, 10);
-    if (fromDate && gDate < fromDate) return false;
-    if (toDate && gDate > toDate) return false;
-    // Team filter
-    if (teamMode === 'specific' && selectedTeams.length > 0) {
+  // Filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [filterTeams, setFilterTeams] = useState([]); // names to require
+
+  const passesFilter = (g) => {
+    const d = g.date.slice(0, 10);
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+    if (filterTeams.length > 0) {
       const a = g.teamA?.name || '';
       const b = g.teamB?.name || '';
-      if (matchMode === 'only') {
-        // Both teams in this game must be among selected
-        if (!selectedTeams.includes(a) || !selectedTeams.includes(b)) return false;
-      } else {
-        // At least one team in selected list
-        if (!selectedTeams.includes(a) && !selectedTeams.includes(b)) return false;
-      }
+      // Pass if at least one of the filtered teams is present
+      if (!filterTeams.some(n => n === a || n === b)) return false;
     }
     return true;
-  });
+  };
 
-  const doExport = async (chosenFormat) => {
-    setFormat(chosenFormat);
-    if (matchedGames.length === 0) {
-      alert(t.no_games_match);
-      return;
-    }
+  const visibleGames = history.filter(passesFilter);
+
+  // Selection state — selectedIds is the set of game IDs to export
+  const [selectedIds, setSelectedIds] = useState(() => new Set(history.map(g => g.id)));
+
+  // When filters change, intersect selection with visible games
+  // (so hidden-by-filter games are removed from selection automatically)
+  useEffect(() => {
+    setSelectedIds(prev => {
+      const visibleIdSet = new Set(visibleGames.map(g => g.id));
+      const next = new Set();
+      prev.forEach(id => { if (visibleIdSet.has(id)) next.add(id); });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, filterTeams.join(',')]);
+
+  const toggle = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(visibleGames.map(g => g.id)));
+  const clearAll = () => setSelectedIds(new Set());
+
+  const toggleFilterTeam = (name) => {
+    setFilterTeams(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+  };
+
+  const [busy, setBusy] = useState(false);
+  const selectedGames = history.filter(g => selectedIds.has(g.id));
+
+  const doExport = async (format) => {
+    if (selectedGames.length === 0) return;
     setBusy(true);
     try {
-      if (chosenFormat === 'csv') {
-        const csv = formatGamesAsCSV(matchedGames, t);
+      if (format === 'csv') {
+        const csv = formatGamesAsCSV(selectedGames, t);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const file = new File([blob], `domino-${Date.now()}.csv`, { type: 'text/csv' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: 'Dominó', text: `${matchedGames.length} juegos` });
+          await navigator.share({ files: [file], title: 'Dominó', text: `${selectedGames.length} juegos` });
         } else {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -1851,7 +1964,7 @@ function ExportModal({ t, state, history, onClose }) {
         }
       } else {
         const files = [];
-        for (const g of matchedGames) {
+        for (const g of selectedGames) {
           const blob = await renderGameToBlob({
             state: { teamA: g.teamA, teamB: g.teamB, target: g.target, pasoValue: g.pasoValue || state.pasoValue, rounds: g.rounds, lang: state.lang },
             totalA: g.totalA, totalB: g.totalB, winner: g.winner,
@@ -1881,150 +1994,196 @@ function ExportModal({ t, state, history, onClose }) {
     }
   };
 
-  const labelStyle = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: C.textLight, marginBottom: '4px' };
-  const inputStyle = {
-    width: '100%', padding: '8px 10px', border: `1px solid ${C.border}`,
-    borderRadius: '6px', fontSize: '14px', background: 'white', color: C.text,
-    fontFamily: 'inherit',
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="w-full max-w-md rounded-t-xl sm:rounded-xl p-4 max-h-[90vh] overflow-y-auto" style={{ background: 'white' }}>
-        <div className="flex items-center justify-between mb-3">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{
+        background: 'rgba(0,0,0,0.5)',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
+      <div
+        className="w-full max-w-md rounded-t-xl sm:rounded-xl flex flex-col"
+        style={{ background: 'white', maxHeight: '85vh' }}
+      >
+        {/* Sticky header — close button always visible */}
+        <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: C.border }}>
           <h3 className="text-lg font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.05em' }}>
             {t.export_games}
           </h3>
-          <button onClick={onClose} className="p-1"><X size={20} /></button>
-        </div>
-
-        <p className="text-xs mb-3" style={{ color: C.textLight }}>{t.export_intro}</p>
-
-        {/* Date range */}
-        <div className="mb-3">
-          <div style={labelStyle}>{t.export_dates.toUpperCase()}</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] block mb-0.5" style={{ color: C.textLight }}>{t.export_from}</label>
-              <input
-                type="date"
-                value={fromDate}
-                min={minDate}
-                max={maxDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] block mb-0.5" style={{ color: C.textLight }}>{t.export_to}</label>
-              <input
-                type="date"
-                value={toDate}
-                min={minDate}
-                max={maxDate}
-                onChange={(e) => setToDate(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-          {(fromDate || toDate) && (
-            <button
-              onClick={() => { setFromDate(''); setToDate(''); }}
-              className="text-[11px] mt-1 underline active:opacity-60"
-              style={{ color: C.textLight }}
-            >
-              {t.export_any_date}
-            </button>
-          )}
-        </div>
-
-        {/* Team mode */}
-        <div className="mb-3">
-          <div style={labelStyle}>{t.export_team_mode.toUpperCase()}</div>
-          <select
-            value={teamMode}
-            onChange={(e) => setTeamMode(e.target.value)}
-            style={inputStyle}
+          <button
+            onClick={onClose}
+            className="p-2 -m-1 rounded-full active:scale-90"
+            style={{ background: '#f1f5f9' }}
+            aria-label="cerrar"
           >
-            <option value="any">{t.export_team_any}</option>
-            <option value="specific">{t.export_team_specific}</option>
-          </select>
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Team picker */}
-        {teamMode === 'specific' && (
-          <div className="mb-3">
-            <div style={labelStyle}>{t.export_select_teams.toUpperCase()}</div>
-            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto rounded p-2" style={{ border: `1px solid ${C.border}` }}>
-              {allTeamNames.map((name) => {
-                const sel = selectedTeams.includes(name);
-                return (
-                  <button
-                    key={name}
-                    onClick={() => toggleTeam(name)}
-                    className="px-2 py-1 rounded text-xs font-semibold active:scale-95 transition"
-                    style={{
-                      background: sel ? C.blue : 'white',
-                      color: sel ? 'white' : C.text,
-                      border: `1.5px solid ${sel ? C.blue : C.border}`,
-                    }}
-                  >
-                    {sel ? '✓ ' : ''}{name}
-                  </button>
-                );
-              })}
+        {/* Filter bar */}
+        <div className="px-3 py-2 border-b flex items-center justify-between gap-2" style={{ borderColor: C.border, background: '#f8fafc' }}>
+          <button
+            onClick={() => setShowFilters(s => !s)}
+            className="text-xs font-semibold flex items-center gap-1 active:opacity-60"
+            style={{ color: C.blue }}
+          >
+            {showFilters ? '▼' : '▶'} {t.export_filters}
+            {(fromDate || toDate || filterTeams.length > 0) && (
+              <span className="px-1.5 rounded-full text-[10px]" style={{ background: C.blue, color: 'white' }}>
+                {[fromDate || toDate ? 1 : 0, filterTeams.length > 0 ? 1 : 0].reduce((a, b) => a + b, 0)}
+              </span>
+            )}
+          </button>
+          <div className="flex gap-2 text-xs">
+            <button onClick={selectAll} className="font-semibold active:opacity-60" style={{ color: C.blue }}>
+              {t.export_select_all}
+            </button>
+            <span style={{ color: C.borderDark }}>·</span>
+            <button onClick={clearAll} className="font-semibold active:opacity-60" style={{ color: C.textLight }}>
+              {t.export_clear}
+            </button>
+          </div>
+        </div>
+
+        {/* Filter panel — collapsible */}
+        {showFilters && (
+          <div className="px-3 py-3 border-b space-y-3" style={{ borderColor: C.border, background: '#f8fafc' }}>
+            <div>
+              <div className="text-[10px] font-bold mb-1" style={{ color: C.textLight, letterSpacing: '0.1em' }}>
+                {t.export_dates.toUpperCase()}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  value={fromDate}
+                  min={minDate}
+                  max={maxDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  placeholder={t.export_from}
+                  style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.border}`, borderRadius: '6px', fontSize: '13px', background: 'white' }}
+                />
+                <input
+                  type="date"
+                  value={toDate}
+                  min={minDate}
+                  max={maxDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  placeholder={t.export_to}
+                  style={{ width: '100%', padding: '6px 8px', border: `1px solid ${C.border}`, borderRadius: '6px', fontSize: '13px', background: 'white' }}
+                />
+              </div>
             </div>
 
-            {selectedTeams.length > 0 && (
-              <div className="mt-2">
-                <div style={labelStyle}>{t.export_match_mode.toUpperCase()}</div>
-                <select
-                  value={matchMode}
-                  onChange={(e) => setMatchMode(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="any">{t.export_match_any}</option>
-                  {selectedTeams.length >= 2 && (
-                    <option value="only">{t.export_match_only}</option>
-                  )}
-                </select>
+            {allTeamNames.length > 0 && (
+              <div>
+                <div className="text-[10px] font-bold mb-1" style={{ color: C.textLight, letterSpacing: '0.1em' }}>
+                  {t.export_team_mode.toUpperCase()}
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {allTeamNames.map(name => {
+                    const sel = filterTeams.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => toggleFilterTeam(name)}
+                        className="px-2 py-1 rounded text-xs font-semibold active:scale-95 transition"
+                        style={{
+                          background: sel ? C.blue : 'white',
+                          color: sel ? 'white' : C.text,
+                          border: `1.5px solid ${sel ? C.blue : C.border}`,
+                        }}
+                      >
+                        {sel ? '✓ ' : ''}{name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Summary + format buttons */}
-        <div className="mb-3 p-2 rounded text-center" style={{ background: '#f1f5f9' }}>
-          <div className="text-2xl font-bold" style={{ color: C.blue, fontFamily: '"Bebas Neue", sans-serif' }}>
-            {matchedGames.length}
-          </div>
-          <div className="text-[11px]" style={{ color: C.textLight }}>{t.export_count}</div>
+        {/* Game list — checkbox rows */}
+        <div className="flex-1 overflow-y-auto" style={{ minHeight: '200px' }}>
+          {visibleGames.length === 0 ? (
+            <div className="text-center py-8 italic text-sm" style={{ color: C.textLight }}>
+              {t.no_games_match}
+            </div>
+          ) : (
+            visibleGames.map(g => {
+              const sel = selectedIds.has(g.id);
+              const aWon = g.winner === g.teamA?.name;
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => toggle(g.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 active:bg-blue-50 transition"
+                  style={{ borderBottom: `1px solid ${C.border}`, textAlign: 'left' }}
+                >
+                  <div
+                    className="flex items-center justify-center rounded shrink-0"
+                    style={{
+                      width: '20px', height: '20px',
+                      background: sel ? C.blue : 'white',
+                      border: `2px solid ${sel ? C.blue : C.borderDark}`,
+                    }}
+                  >
+                    {sel && <Check size={14} style={{ color: 'white' }} strokeWidth={3} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-semibold" style={{ color: C.textLight }}>
+                      {formatUSDateTime(new Date(g.date))}
+                    </div>
+                    <div className="text-sm font-bold flex items-center gap-1.5" style={{ color: C.text, marginTop: '1px' }}>
+                      <span style={{ color: aWon ? C.gold : C.text }}>{g.teamA?.name}</span>
+                      <span className="tabular-nums" style={{ fontFamily: '"Bebas Neue", sans-serif', fontWeight: 700 }}>
+                        {g.totalA}–{g.totalB}
+                      </span>
+                      <span style={{ color: !aWon && g.winner ? C.gold : C.text }}>{g.teamB?.name}</span>
+                    </div>
+                    {(g.teamA?.p1 || g.teamA?.p2 || g.teamB?.p1 || g.teamB?.p2) && (
+                      <div className="text-[10px] truncate" style={{ color: C.textLight, marginTop: '1px' }}>
+                        {[g.teamA?.p1, g.teamA?.p2].filter(Boolean).join(', ')}
+                        {' vs '}
+                        {[g.teamB?.p1, g.teamB?.p2].filter(Boolean).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => doExport('csv')}
-            disabled={busy || matchedGames.length === 0}
-            className="py-3 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-40"
-            style={{ background: C.blue, color: 'white', fontSize: '13px', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
-          >
-            <FileText size={14} /> {t.csv_format}
-          </button>
-          <button
-            onClick={() => doExport('jpg')}
-            disabled={busy || matchedGames.length === 0}
-            className="py-3 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-40"
-            style={{ background: 'white', color: C.blue, border: `2px solid ${C.blue}`, fontSize: '13px', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
-          >
-            <Share2 size={14} /> {t.jpg_format}
-          </button>
-        </div>
-
-        {busy && (
-          <div className="text-center mt-2 text-xs" style={{ color: C.textLight }}>
-            {t.sharing}
+        {/* Sticky footer — export action buttons */}
+        <div className="border-t p-3 space-y-2" style={{ borderColor: C.border, background: 'white' }}>
+          <div className="text-center text-xs" style={{ color: C.textLight }}>
+            <strong style={{ color: C.blue }}>{selectedGames.length}</strong> {t.export_selected_count}
           </div>
-        )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => doExport('csv')}
+              disabled={busy || selectedGames.length === 0}
+              className="py-2.5 rounded-lg font-bold flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-40"
+              style={{ background: C.blue, color: 'white', fontSize: '13px', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+            >
+              <FileText size={14} /> {t.csv_format}
+            </button>
+            <button
+              onClick={() => doExport('jpg')}
+              disabled={busy || selectedGames.length === 0}
+              className="py-2.5 rounded-lg font-bold flex items-center justify-center gap-1 active:scale-95 transition disabled:opacity-40"
+              style={{ background: 'white', color: C.blue, border: `2px solid ${C.blue}`, fontSize: '13px', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+            >
+              <Share2 size={14} /> {t.jpg_format}
+            </button>
+          </div>
+          {busy && (
+            <div className="text-center text-xs" style={{ color: C.textLight }}>{t.sharing}</div>
+          )}
+        </div>
       </div>
     </div>
   );
