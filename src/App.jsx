@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.1.4';
+const APP_VERSION = '1.1.5';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
+const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
 // ==============================================
@@ -48,6 +49,7 @@ const STRINGS = {
     feedback_intro: 'Envía tus ideas para mejorar la app:',
     about: 'Acerca de',
     about_intro: 'Tanteador de dominó dominicano. Sin anuncios. Funciona sin internet.',
+    about_full: 'Esta aplicación fue creada para contribuir y fomentar el juego de dominó de forma simple. No colectamos ninguna información. Los juegos permanecen en tu celular y solo recibe información del internet si el usuario desea actualizar.\n\nCreado por José Rodríguez con contribuciones de Daniel Rodríguez, quien sugirió la idea de la aplicación originalmente, y mis hermanos Marcos y Ramón.\n\nCualquier sugerencia para mejorar la aplicación es bienvenida. ¡Disfruten!',
     how_scoring: 'Cómo funciona el puntaje',
     rule_teams: 'Cada equipo es de 2 jugadores.',
     rule_target: 'Se gana al llegar a la meta (por defecto 200, configurable en Ajustes).',
@@ -128,6 +130,21 @@ const STRINGS = {
     pick_team: 'Elegir equipo',
     no_games_match: 'No hay juegos que coincidan.',
     export_done: 'Exportado',
+    export_intro: 'Filtra los juegos que quieres exportar.',
+    export_dates: 'Fechas',
+    export_from: 'Desde',
+    export_to: 'Hasta',
+    export_any_date: 'Cualquier fecha',
+    export_team_mode: 'Equipos',
+    export_team_any: 'Cualquier equipo',
+    export_team_specific: 'Equipos específicos',
+    export_select_teams: 'Selecciona uno o más equipos',
+    export_match_mode: 'Modo',
+    export_match_any: 'Cualquier oponente',
+    export_match_only: 'Sólo entre los seleccionados',
+    export_summary: 'Resumen',
+    export_count: 'juegos coinciden',
+    export_continue: 'Continuar',
   },
   en: {
     new: 'New',
@@ -168,6 +185,7 @@ const STRINGS = {
     feedback_intro: 'Share your ideas to improve the app:',
     about: 'About',
     about_intro: 'Dominican domino scorekeeper. No ads. Works offline.',
+    about_full: 'This app was created to contribute to and encourage the game of dominoes in a simple way. We don\'t collect any information. Games stay on your phone and the app only contacts the internet if you choose to check for updates.\n\nCreated by José Rodríguez with contributions from Daniel Rodríguez, who originally suggested the idea, and my brothers Marcos and Ramón.\n\nAny suggestion to improve the app is welcome. Enjoy!',
     how_scoring: 'How scoring works',
     rule_teams: 'Each team has 2 players.',
     rule_target: 'First to reach the target wins (default 200, set in Settings).',
@@ -248,6 +266,21 @@ const STRINGS = {
     pick_team: 'Pick a team',
     no_games_match: 'No games match.',
     export_done: 'Exported',
+    export_intro: 'Filter the games you want to export.',
+    export_dates: 'Dates',
+    export_from: 'From',
+    export_to: 'To',
+    export_any_date: 'Any date',
+    export_team_mode: 'Teams',
+    export_team_any: 'Any team',
+    export_team_specific: 'Specific teams',
+    export_select_teams: 'Select one or more teams',
+    export_match_mode: 'Mode',
+    export_match_any: 'vs any opponent',
+    export_match_only: 'Only between selected',
+    export_summary: 'Summary',
+    export_count: 'games match',
+    export_continue: 'Continue',
     update_btn: 'Actualizar',
     up_to_date_short: 'Última versión',
     suggestions: 'Sugerencias',
@@ -263,6 +296,21 @@ const STRINGS = {
     pick_team: 'Elegir equipo',
     no_games_match: 'No hay juegos que coincidan.',
     export_done: 'Exportado',
+    export_intro: 'Filtra los juegos que quieres exportar.',
+    export_dates: 'Fechas',
+    export_from: 'Desde',
+    export_to: 'Hasta',
+    export_any_date: 'Cualquier fecha',
+    export_team_mode: 'Equipos',
+    export_team_any: 'Cualquier equipo',
+    export_team_specific: 'Equipos específicos',
+    export_select_teams: 'Selecciona uno o más equipos',
+    export_match_mode: 'Modo',
+    export_match_any: 'Cualquier oponente',
+    export_match_only: 'Sólo entre los seleccionados',
+    export_summary: 'Resumen',
+    export_count: 'juegos coinciden',
+    export_continue: 'Continuar',
   },
 };
 
@@ -580,27 +628,39 @@ export default function DominoScorekeeper() {
   const checkForUpdates = async () => {
     if (updating) return;
     setUpdating(true);
-    let foundUpdate = false;
+    let isNewer = false;
     try {
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await reg.update();
-          // Wait briefly for installation events
-          await new Promise((r) => setTimeout(r, 1200));
-          if (reg.installing || reg.waiting) {
-            foundUpdate = true;
-            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
+      // Fetch the live service-worker.js (cache-busted) and parse its CACHE_VERSION.
+      // Compare to the version baked into this bundle at build time.
+      const swUrl = new URL('service-worker.js', window.location.href);
+      swUrl.searchParams.set('_t', Date.now().toString(36));
+      const res = await fetch(swUrl.toString(), { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        const m = text.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
+        const liveVersion = m ? m[1] : '';
+        if (liveVersion && BUILT_CACHE_VERSION && liveVersion !== BUILT_CACHE_VERSION) {
+          isNewer = true;
         }
       }
     } catch (e) {}
-    if (foundUpdate) {
+
+    if (isNewer) {
+      // Tell the SW to fetch fresh and reload
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg) {
+            await reg.update();
+            await new Promise((r) => setTimeout(r, 800));
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      } catch (e) {}
       const url = new URL(window.location.href);
       url.searchParams.set('_v', Date.now().toString(36));
       window.location.replace(url.toString());
     } else {
-      // No update — show "Última versión" briefly
       setUpToDateFlash(true);
       setTimeout(() => setUpToDateFlash(false), 2500);
       setUpdating(false);
@@ -631,13 +691,13 @@ export default function DominoScorekeeper() {
           </div>
           <div className="flex gap-1.5">
             <IconBtn onClick={shareGame} disabled={state.rounds.length === 0}>
-              <Share2 size={16} />
+              <Share2 size={22} />
             </IconBtn>
             <IconBtn onClick={() => setView(view === 'about' ? 'game' : 'about')}>
-              <Info size={16} />
+              <Info size={22} />
             </IconBtn>
             <IconBtn onClick={() => setView(view === 'settings' ? 'game' : 'settings')}>
-              <Settings size={16} />
+              <Settings size={22} />
             </IconBtn>
             <button
               onClick={newGame}
@@ -839,7 +899,7 @@ function IconBtn({ children, onClick, disabled }) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="p-1.5 rounded-md active:scale-95 transition disabled:opacity-40"
+      className="p-2 rounded-md active:scale-95 transition disabled:opacity-40"
       style={{ background: C.blueDark, color: 'white' }}
     >
       {children}
@@ -1620,6 +1680,12 @@ function AboutView({ t, state, onClose }) {
         <p className="text-xs" style={{ color: C.textLight, lineHeight: 1.4 }}>{t.about_intro}</p>
       </div>
 
+      <Section title={t.about}>
+        <p className="text-sm" style={{ color: C.text, lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+          {t.about_full}
+        </p>
+      </Section>
+
       <Section title={t.how_scoring}>
         <ul className="space-y-1.5 text-sm" style={{ color: C.text, lineHeight: 1.4 }}>
           <li>• {t.rule_teams}</li>
@@ -1655,25 +1721,17 @@ function AboutView({ t, state, onClose }) {
         </ol>
       </Section>
 
-      <Section title={t.feedback}>
-        <p className="text-xs mb-2" style={{ color: C.textLight }}>{t.feedback_intro}</p>
-        <button onClick={sendFeedbackEmail} className="w-full py-2 px-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-1 active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
-          <Mail size={14} /> {t.send_email}
-        </button>
-      </Section>
-
-      <Section title={t.privacy}>
-        <p className="text-sm" style={{ color: C.text, lineHeight: 1.4 }}>{t.privacy_text}</p>
-      </Section>
-
-      <Section title={t.license}>
-        <p className="text-sm" style={{ color: C.text, lineHeight: 1.4 }}>{t.license_text}</p>
-      </Section>
+      {/* Sugerencias button */}
+      <button
+        onClick={sendFeedbackEmail}
+        className="w-full py-3 rounded-lg active:scale-95 transition flex items-center justify-center gap-2 mb-2"
+        style={{ background: C.blue, color: 'white', fontWeight: 700, fontSize: '14px', letterSpacing: '0.05em', fontFamily: '"Bebas Neue", sans-serif' }}
+      >
+        <Mail size={16} /> {t.suggestions}
+      </button>
 
       <div className="text-center pt-2 pb-4">
-        <div className="text-xs mb-1" style={{ color: C.textLight }}>{t.created_by}</div>
-        <div className="text-base font-bold" style={{ color: C.blue }}>{state.creator}</div>
-        <div className="text-[10px] mt-2 tracking-widest" style={{ color: C.textLight }}>
+        <div className="text-[10px] tracking-widest" style={{ color: C.textLight }}>
           {t.version} {APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
         </div>
       </div>
@@ -1730,57 +1788,70 @@ function HistoryView({ t, state, history, onDelete, onClose }) {
 }
 
 function ExportModal({ t, state, history, onClose }) {
-  const [step, setStep] = useState('format'); // 'format' | 'filter' | 'team' | 'done'
-  const [format, setFormat] = useState(null);  // 'csv' | 'jpg'
-  const [filter, setFilter] = useState(null);  // 'all' | 'last7' | 'last30' | 'team'
-  const [teamName, setTeamName] = useState(null);
+  // Date defaults: from = oldest game's date, to = newest
+  const sortedDates = history.map((g) => g.date).sort();
+  const minDate = sortedDates[0] ? sortedDates[0].slice(0, 10) : '';
+  const maxDate = sortedDates[sortedDates.length - 1] ? sortedDates[sortedDates.length - 1].slice(0, 10) : '';
+
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [teamMode, setTeamMode] = useState('any');     // 'any' | 'specific'
+  const [selectedTeams, setSelectedTeams] = useState([]); // names
+  const [matchMode, setMatchMode] = useState('any');   // 'any' | 'only'
+  const [format, setFormat] = useState(null);          // 'csv' | 'jpg' (final pick)
   const [busy, setBusy] = useState(false);
 
   const allTeamNames = Array.from(new Set(
     history.flatMap((g) => [g.teamA?.name, g.teamB?.name]).filter(Boolean)
-  ));
+  )).sort();
 
-  const filterGames = () => {
-    const now = Date.now();
-    return history.filter((g) => {
-      if (filter === 'last7') return (now - new Date(g.date).getTime()) <= 7 * 86400000;
-      if (filter === 'last30') return (now - new Date(g.date).getTime()) <= 30 * 86400000;
-      if (filter === 'team') return g.teamA?.name === teamName || g.teamB?.name === teamName;
-      return true; // 'all'
-    });
+  const toggleTeam = (name) => {
+    setSelectedTeams((s) => s.includes(name) ? s.filter((n) => n !== name) : [...s, name]);
   };
 
-  const doExport = async () => {
-    const games = filterGames();
-    if (games.length === 0) {
+  const matchedGames = history.filter((g) => {
+    // Date filter
+    const gDate = g.date.slice(0, 10);
+    if (fromDate && gDate < fromDate) return false;
+    if (toDate && gDate > toDate) return false;
+    // Team filter
+    if (teamMode === 'specific' && selectedTeams.length > 0) {
+      const a = g.teamA?.name || '';
+      const b = g.teamB?.name || '';
+      if (matchMode === 'only') {
+        // Both teams in this game must be among selected
+        if (!selectedTeams.includes(a) || !selectedTeams.includes(b)) return false;
+      } else {
+        // At least one team in selected list
+        if (!selectedTeams.includes(a) && !selectedTeams.includes(b)) return false;
+      }
+    }
+    return true;
+  });
+
+  const doExport = async (chosenFormat) => {
+    setFormat(chosenFormat);
+    if (matchedGames.length === 0) {
       alert(t.no_games_match);
       return;
     }
     setBusy(true);
     try {
-      if (format === 'csv') {
-        const csv = formatGamesAsCSV(games, t);
+      if (chosenFormat === 'csv') {
+        const csv = formatGamesAsCSV(matchedGames, t);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const file = new File([blob], `domino-${Date.now()}.csv`, { type: 'text/csv' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Dominó - Exportación',
-            text: `${games.length} juegos`,
-          });
+          await navigator.share({ files: [file], title: 'Dominó', text: `${matchedGames.length} juegos` });
         } else {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
-          a.href = url;
-          a.download = file.name;
-          a.click();
+          a.href = url; a.download = file.name; a.click();
           URL.revokeObjectURL(url);
         }
       } else {
-        // JPG: render each game to a blob and try to share them all together,
-        // or sequentially if the platform doesn't accept multiple files.
         const files = [];
-        for (const g of games) {
+        for (const g of matchedGames) {
           const blob = await renderGameToBlob({
             state: { teamA: g.teamA, teamB: g.teamB, target: g.target, pasoValue: g.pasoValue || state.pasoValue, rounds: g.rounds, lang: state.lang },
             totalA: g.totalA, totalB: g.totalB, winner: g.winner,
@@ -1789,24 +1860,16 @@ function ExportModal({ t, state, history, onClose }) {
           files.push(new File([blob], `domino-${g.id}.jpg`, { type: 'image/jpeg' }));
         }
         if (navigator.canShare && navigator.canShare({ files })) {
-          await navigator.share({
-            files,
-            title: 'Dominó - Exportación',
-            text: `${files.length} juegos`,
-          });
-        } else if (navigator.canShare && files.length > 0 && navigator.canShare({ files: [files[0]] })) {
-          // Fallback: share first only
+          await navigator.share({ files, title: 'Dominó', text: `${files.length} juegos` });
+        } else if (files.length > 0 && navigator.canShare && navigator.canShare({ files: [files[0]] })) {
           await navigator.share({ files: [files[0]] });
         } else {
-          // Download each
           for (const f of files) {
             const url = URL.createObjectURL(f);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = f.name;
-            a.click();
+            a.href = url; a.download = f.name; a.click();
             URL.revokeObjectURL(url);
-            await new Promise((r) => setTimeout(r, 100));
+            await new Promise((r) => setTimeout(r, 150));
           }
         }
       }
@@ -1818,95 +1881,148 @@ function ExportModal({ t, state, history, onClose }) {
     }
   };
 
+  const labelStyle = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: C.textLight, marginBottom: '4px' };
+  const inputStyle = {
+    width: '100%', padding: '8px 10px', border: `1px solid ${C.border}`,
+    borderRadius: '6px', fontSize: '14px', background: 'white', color: C.text,
+    fontFamily: 'inherit',
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: 'white' }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div className="w-full max-w-md rounded-t-xl sm:rounded-xl p-4 max-h-[90vh] overflow-y-auto" style={{ background: 'white' }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.05em' }}>
             {t.export_games}
           </h3>
-          <button onClick={onClose} className="p-1"><X size={18} /></button>
+          <button onClick={onClose} className="p-1"><X size={20} /></button>
         </div>
 
-        {step === 'format' && (
-          <div>
-            <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>{t.export_format}</p>
-            <div className="flex flex-col gap-2">
-              <button onClick={() => { setFormat('csv'); setStep('filter'); }} className="py-3 rounded-lg font-bold active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
-                <FileText size={14} style={{ display: 'inline', marginRight: 6 }} />
-                {t.csv_format}
-              </button>
-              <button onClick={() => { setFormat('jpg'); setStep('filter'); }} className="py-3 rounded-lg font-bold active:scale-95 transition" style={{ background: 'white', color: C.blue, border: `2px solid ${C.blue}` }}>
-                <Share2 size={14} style={{ display: 'inline', marginRight: 6 }} />
-                {t.jpg_format}
-              </button>
+        <p className="text-xs mb-3" style={{ color: C.textLight }}>{t.export_intro}</p>
+
+        {/* Date range */}
+        <div className="mb-3">
+          <div style={labelStyle}>{t.export_dates.toUpperCase()}</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] block mb-0.5" style={{ color: C.textLight }}>{t.export_from}</label>
+              <input
+                type="date"
+                value={fromDate}
+                min={minDate}
+                max={maxDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] block mb-0.5" style={{ color: C.textLight }}>{t.export_to}</label>
+              <input
+                type="date"
+                value={toDate}
+                min={minDate}
+                max={maxDate}
+                onChange={(e) => setToDate(e.target.value)}
+                style={inputStyle}
+              />
             </div>
           </div>
-        )}
-
-        {step === 'filter' && (
-          <div>
-            <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>{t.export_filter}</p>
-            <div className="flex flex-col gap-2">
-              <button onClick={() => { setFilter('all'); setStep('confirm'); }} className="py-2.5 rounded-lg font-bold active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
-                {t.export_all} ({history.length})
-              </button>
-              <button onClick={() => { setFilter('last7'); setStep('confirm'); }} className="py-2.5 rounded-lg font-semibold active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
-                {t.export_last_7}
-              </button>
-              <button onClick={() => { setFilter('last30'); setStep('confirm'); }} className="py-2.5 rounded-lg font-semibold active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
-                {t.export_last_30}
-              </button>
-              {allTeamNames.length > 0 && (
-                <button onClick={() => { setFilter('team'); setStep('team'); }} className="py-2.5 rounded-lg font-semibold active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
-                  {t.export_by_team} →
-                </button>
-              )}
-            </div>
-            <button onClick={() => setStep('format')} className="mt-3 w-full py-2 rounded text-xs" style={{ color: C.textLight }}>
-              ← {t.back}
-            </button>
-          </div>
-        )}
-
-        {step === 'team' && (
-          <div>
-            <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>{t.pick_team}</p>
-            <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto">
-              {allTeamNames.map((name) => (
-                <button
-                  key={name}
-                  onClick={() => { setTeamName(name); setStep('confirm'); }}
-                  className="py-2 rounded-lg font-semibold text-sm active:scale-95 transition text-left px-3"
-                  style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setStep('filter')} className="mt-3 w-full py-2 rounded text-xs" style={{ color: C.textLight }}>
-              ← {t.back}
-            </button>
-          </div>
-        )}
-
-        {step === 'confirm' && (
-          <div>
-            <p className="text-sm mb-3" style={{ color: C.text }}>
-              <strong>{filterGames().length}</strong> {t.rounds_word === 'jugadas' ? 'juegos' : 'games'} · {format === 'csv' ? t.csv_format : t.jpg_format}
-              {filter === 'team' && teamName && ` · ${teamName}`}
-            </p>
+          {(fromDate || toDate) && (
             <button
-              onClick={doExport}
-              disabled={busy}
-              className="w-full py-3 rounded-lg font-bold active:scale-95 transition disabled:opacity-60 flex items-center justify-center gap-2"
-              style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+              onClick={() => { setFromDate(''); setToDate(''); }}
+              className="text-[11px] mt-1 underline active:opacity-60"
+              style={{ color: C.textLight }}
             >
-              <Share2 size={16} /> {busy ? t.sharing : t.share}
+              {t.export_any_date}
             </button>
-            <button onClick={() => setStep('filter')} className="mt-2 w-full py-2 rounded text-xs" style={{ color: C.textLight }}>
-              ← {t.back}
-            </button>
+          )}
+        </div>
+
+        {/* Team mode */}
+        <div className="mb-3">
+          <div style={labelStyle}>{t.export_team_mode.toUpperCase()}</div>
+          <select
+            value={teamMode}
+            onChange={(e) => setTeamMode(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="any">{t.export_team_any}</option>
+            <option value="specific">{t.export_team_specific}</option>
+          </select>
+        </div>
+
+        {/* Team picker */}
+        {teamMode === 'specific' && (
+          <div className="mb-3">
+            <div style={labelStyle}>{t.export_select_teams.toUpperCase()}</div>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto rounded p-2" style={{ border: `1px solid ${C.border}` }}>
+              {allTeamNames.map((name) => {
+                const sel = selectedTeams.includes(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => toggleTeam(name)}
+                    className="px-2 py-1 rounded text-xs font-semibold active:scale-95 transition"
+                    style={{
+                      background: sel ? C.blue : 'white',
+                      color: sel ? 'white' : C.text,
+                      border: `1.5px solid ${sel ? C.blue : C.border}`,
+                    }}
+                  >
+                    {sel ? '✓ ' : ''}{name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedTeams.length > 0 && (
+              <div className="mt-2">
+                <div style={labelStyle}>{t.export_match_mode.toUpperCase()}</div>
+                <select
+                  value={matchMode}
+                  onChange={(e) => setMatchMode(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="any">{t.export_match_any}</option>
+                  {selectedTeams.length >= 2 && (
+                    <option value="only">{t.export_match_only}</option>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Summary + format buttons */}
+        <div className="mb-3 p-2 rounded text-center" style={{ background: '#f1f5f9' }}>
+          <div className="text-2xl font-bold" style={{ color: C.blue, fontFamily: '"Bebas Neue", sans-serif' }}>
+            {matchedGames.length}
+          </div>
+          <div className="text-[11px]" style={{ color: C.textLight }}>{t.export_count}</div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => doExport('csv')}
+            disabled={busy || matchedGames.length === 0}
+            className="py-3 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-40"
+            style={{ background: C.blue, color: 'white', fontSize: '13px', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+          >
+            <FileText size={14} /> {t.csv_format}
+          </button>
+          <button
+            onClick={() => doExport('jpg')}
+            disabled={busy || matchedGames.length === 0}
+            className="py-3 rounded-lg font-bold flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-40"
+            style={{ background: 'white', color: C.blue, border: `2px solid ${C.blue}`, fontSize: '13px', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+          >
+            <Share2 size={14} /> {t.jpg_format}
+          </button>
+        </div>
+
+        {busy && (
+          <div className="text-center mt-2 text-xs" style={{ color: C.textLight }}>
+            {t.sharing}
           </div>
         )}
       </div>

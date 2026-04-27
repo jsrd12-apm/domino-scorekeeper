@@ -6,11 +6,9 @@ const path = require('path');
 const distDir = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
 
-// Clean dist
 if (fs.existsSync(distDir)) fs.rmSync(distDir, { recursive: true });
 fs.mkdirSync(distDir, { recursive: true });
 
-// Copy public/ → dist/
 function copyRecursive(src, dst) {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -24,7 +22,13 @@ function copyRecursive(src, dst) {
 }
 if (fs.existsSync(publicDir)) copyRecursive(publicDir, distDir);
 
-// Bundle JS + CSS
+// Read CACHE_VERSION from service-worker.js so the bundle can compare against live
+const swPath = path.join(publicDir, 'service-worker.js');
+const swSrc = fs.readFileSync(swPath, 'utf8');
+const cacheMatch = swSrc.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
+const cacheVersion = cacheMatch ? cacheMatch[1] : '';
+console.log(`Building against CACHE_VERSION = ${cacheVersion}`);
+
 esbuild.buildSync({
   entryPoints: [path.join(__dirname, 'src', 'main.jsx')],
   bundle: true,
@@ -39,6 +43,7 @@ esbuild.buildSync({
   define: {
     'process.env.NODE_ENV': '"production"',
     'process.env.BUILD_DATE': JSON.stringify(((d) => `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`)(new Date())),
+    'process.env.CACHE_VERSION': JSON.stringify(cacheVersion),
   },
 });
 
