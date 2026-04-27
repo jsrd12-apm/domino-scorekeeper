@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.1.4';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -113,6 +113,21 @@ const STRINGS = {
     bonus_10_value: 'Bono +10',
     beta: 'BETA',
     set_score: 'SETS',
+    update_btn: 'Actualizar',
+    up_to_date_short: 'Última versión',
+    suggestions: 'Sugerencias',
+    export_games: 'Exportar juegos',
+    export_format: '¿Formato?',
+    csv_format: 'CSV (texto)',
+    jpg_format: 'JPG (imágenes)',
+    export_filter: '¿Qué juegos?',
+    export_all: 'Todos',
+    export_last_7: 'Últimos 7 días',
+    export_last_30: 'Últimos 30 días',
+    export_by_team: 'Por equipo',
+    pick_team: 'Elegir equipo',
+    no_games_match: 'No hay juegos que coincidan.',
+    export_done: 'Exportado',
   },
   en: {
     new: 'New',
@@ -218,6 +233,36 @@ const STRINGS = {
     bonus_10_value: 'Bonus +10',
     beta: 'BETA',
     set_score: 'SETS',
+    update_btn: 'Update',
+    up_to_date_short: 'Up to date',
+    suggestions: 'Feedback',
+    export_games: 'Export games',
+    export_format: 'Format?',
+    csv_format: 'CSV (text)',
+    jpg_format: 'JPG (images)',
+    export_filter: 'Which games?',
+    export_all: 'All',
+    export_last_7: 'Last 7 days',
+    export_last_30: 'Last 30 days',
+    export_by_team: 'By team',
+    pick_team: 'Pick a team',
+    no_games_match: 'No games match.',
+    export_done: 'Exported',
+    update_btn: 'Actualizar',
+    up_to_date_short: 'Última versión',
+    suggestions: 'Sugerencias',
+    export_games: 'Exportar juegos',
+    export_format: '¿Formato?',
+    csv_format: 'CSV (texto)',
+    jpg_format: 'JPG (imágenes)',
+    export_filter: '¿Qué juegos?',
+    export_all: 'Todos',
+    export_last_7: 'Últimos 7 días',
+    export_last_30: 'Últimos 30 días',
+    export_by_team: 'Por equipo',
+    pick_team: 'Elegir equipo',
+    no_games_match: 'No hay juegos que coincidan.',
+    export_done: 'Exportado',
   },
 };
 
@@ -288,6 +333,7 @@ export default function DominoScorekeeper() {
   const [view, setView] = useState('game');
   const [shareStatus, setShareStatus] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [upToDateFlash, setUpToDateFlash] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [confirmingNew, setConfirmingNew] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -534,23 +580,31 @@ export default function DominoScorekeeper() {
   const checkForUpdates = async () => {
     if (updating) return;
     setUpdating(true);
+    let foundUpdate = false;
     try {
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration();
         if (reg) {
           await reg.update();
-          if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          // Give the SW a moment to install/activate
+          // Wait briefly for installation events
           await new Promise((r) => setTimeout(r, 1200));
+          if (reg.installing || reg.waiting) {
+            foundUpdate = true;
+            if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
         }
       }
     } catch (e) {}
-    // Always reload — the active SW will serve the latest cached assets.
-    // Cache-busting query string forces the navigation to bypass any
-    // intermediate HTTP cache; the SW still answers fetches normally.
-    const url = new URL(window.location.href);
-    url.searchParams.set('_v', Date.now().toString(36));
-    window.location.replace(url.toString());
+    if (foundUpdate) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('_v', Date.now().toString(36));
+      window.location.replace(url.toString());
+    } else {
+      // No update — show "Última versión" briefly
+      setUpToDateFlash(true);
+      setTimeout(() => setUpToDateFlash(false), 2500);
+      setUpdating(false);
+    }
   };
 
   return (
@@ -668,6 +722,7 @@ export default function DominoScorekeeper() {
             roundsScrollRef={roundsScrollRef}
             checkForUpdates={checkForUpdates}
             updating={updating}
+            upToDateFlash={upToDateFlash}
             update={update}
           />
         )}
@@ -800,7 +855,7 @@ function GameView(p) {
     handleBonusTap, pickBonusTeam,
     clearPendingBonusForTeam, clearAllPending,
     editingField, setEditingField, updateTeam, addRound, setEditingRound, roundsScrollRef,
-    checkForUpdates, updating, update } = p;
+    checkForUpdates, updating, upToDateFlash, update } = p;
 
   // (totalPendingBonus computed inline where needed)
 
@@ -939,21 +994,32 @@ function GameView(p) {
             <div className="text-center py-6 italic text-sm" style={{ color: C.textLight }}>{t.no_rounds}</div>
           ) : (
             <>
-              {state.rounds.map((r, i) => (
-                <button
-                  key={i}
-                  onClick={() => setEditingRound(i)}
-                  className="w-full items-center py-1.5 text-center active:bg-blue-50 transition"
-                  style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
-                >
-                  <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
-                  <ScoreSlot value={r.a} color={C.red} showShoe={r.a === 0 && r.b > 0} />
-                  <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-                  <ScoreSlot value={r.b} color={C.blue} showShoe={r.b === 0 && r.a > 0} />
-                  <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
-                  <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
-                </button>
-              ))}
+              {(() => {
+                // Compute cumulative totals through each round so we know if a team is still at 0
+                let cumA = 0, cumB = 0;
+                return state.rounds.map((r, i) => {
+                  cumA += r.a + (r.bonusA || 0);
+                  cumB += r.b + (r.bonusB || 0);
+                  // Shoe shown when this team's total is still 0 AND the other has scored
+                  const shoeA = cumA === 0 && cumB > 0;
+                  const shoeB = cumB === 0 && cumA > 0;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setEditingRound(i)}
+                      className="w-full items-center py-1.5 text-center active:bg-blue-50 transition"
+                      style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
+                    >
+                      <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
+                      <ScoreSlot value={r.a} color={C.red} showShoe={shoeA} />
+                      <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
+                      <ScoreSlot value={r.b} color={C.blue} showShoe={shoeB} />
+                      <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
+                      <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
+                    </button>
+                  );
+                });
+              })()}
               {(pendingPasoA + pendingPasoB + pendingTenA + pendingTenB) > 0 && (
                 <div
                   className="w-full items-center py-1.5 text-center"
@@ -1008,16 +1074,42 @@ function GameView(p) {
       </div>
 
       {/* Version + check for updates footer */}
-      <div className="text-center mt-3 text-[10px]" style={{ color: C.textLight }}>
-        v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
-        {' · '}
+      <div className="flex items-center justify-center gap-3 mt-4 mb-1">
+        <div className="text-xs" style={{ color: C.textLight, fontWeight: 600 }}>
+          v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}
+        </div>
         <button
           onClick={checkForUpdates}
           disabled={updating}
-          className="underline active:opacity-60 transition disabled:opacity-50"
-          style={{ color: C.blue, fontWeight: 600 }}
+          className="px-3 py-1.5 rounded-lg active:scale-95 transition disabled:opacity-60 flex items-center gap-1"
+          style={{
+            background: upToDateFlash ? C.green : C.blue,
+            color: 'white',
+            fontWeight: 700,
+            fontSize: '12px',
+            letterSpacing: '0.05em',
+          }}
         >
-          {updating ? t.checking : t.check_updates}
+          {updating ? t.checking : upToDateFlash ? `✓ ${t.up_to_date_short}` : t.update_btn}
+        </button>
+        <button
+          onClick={() => {
+            const subject = encodeURIComponent(t.feedback_subject || 'Sugerencia');
+            window.location.href = `mailto:jsrd12@gmail.com?subject=${subject}`;
+          }}
+          className="px-3 py-1.5 rounded-lg active:scale-95 transition flex items-center gap-1"
+          style={{
+            background: 'white',
+            color: C.blue,
+            fontWeight: 700,
+            fontSize: '12px',
+            letterSpacing: '0.05em',
+            border: `1.5px solid ${C.blue}`,
+          }}
+          aria-label={t.suggestions}
+        >
+          <Mail size={13} />
+          {t.suggestions}
         </button>
       </div>
     </>
@@ -1592,6 +1684,7 @@ function AboutView({ t, state, onClose }) {
 // =================== HISTORY ===================
 function HistoryView({ t, state, history, onDelete, onClose }) {
   const [selected, setSelected] = useState(null);
+  const [showExport, setShowExport] = useState(false);
   if (selected) return <HistoryDetail game={selected} t={t} state={state} onBack={() => setSelected(null)} />;
 
   return (
@@ -1599,9 +1692,20 @@ function HistoryView({ t, state, history, onDelete, onClose }) {
       <button onClick={onClose} className="flex items-center gap-1 mb-3 text-sm font-semibold active:scale-95 transition" style={{ color: C.blue }}>
         <ChevronLeft size={16} /> {t.back}
       </button>
-      <h2 className="text-xl mb-3 font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.08em' }}>
-        {t.saved_games}
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.08em' }}>
+          {t.saved_games}
+        </h2>
+        {history.length > 0 && (
+          <button
+            onClick={() => setShowExport(true)}
+            className="px-3 py-1.5 rounded-lg active:scale-95 transition flex items-center gap-1"
+            style={{ background: C.blue, color: 'white', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em' }}
+          >
+            <Share2 size={13} /> {t.export_games}
+          </button>
+        )}
+      </div>
       {history.length === 0 ? (
         <div className="p-6 text-center italic rounded-lg" style={{ background: 'white', border: `1px solid ${C.border}`, color: C.textLight }}>
           {t.no_saved}
@@ -1613,8 +1717,238 @@ function HistoryView({ t, state, history, onDelete, onClose }) {
           ))}
         </div>
       )}
+      {showExport && (
+        <ExportModal
+          t={t}
+          state={state}
+          history={history}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
+}
+
+function ExportModal({ t, state, history, onClose }) {
+  const [step, setStep] = useState('format'); // 'format' | 'filter' | 'team' | 'done'
+  const [format, setFormat] = useState(null);  // 'csv' | 'jpg'
+  const [filter, setFilter] = useState(null);  // 'all' | 'last7' | 'last30' | 'team'
+  const [teamName, setTeamName] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const allTeamNames = Array.from(new Set(
+    history.flatMap((g) => [g.teamA?.name, g.teamB?.name]).filter(Boolean)
+  ));
+
+  const filterGames = () => {
+    const now = Date.now();
+    return history.filter((g) => {
+      if (filter === 'last7') return (now - new Date(g.date).getTime()) <= 7 * 86400000;
+      if (filter === 'last30') return (now - new Date(g.date).getTime()) <= 30 * 86400000;
+      if (filter === 'team') return g.teamA?.name === teamName || g.teamB?.name === teamName;
+      return true; // 'all'
+    });
+  };
+
+  const doExport = async () => {
+    const games = filterGames();
+    if (games.length === 0) {
+      alert(t.no_games_match);
+      return;
+    }
+    setBusy(true);
+    try {
+      if (format === 'csv') {
+        const csv = formatGamesAsCSV(games, t);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const file = new File([blob], `domino-${Date.now()}.csv`, { type: 'text/csv' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Dominó - Exportación',
+            text: `${games.length} juegos`,
+          });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      } else {
+        // JPG: render each game to a blob and try to share them all together,
+        // or sequentially if the platform doesn't accept multiple files.
+        const files = [];
+        for (const g of games) {
+          const blob = await renderGameToBlob({
+            state: { teamA: g.teamA, teamB: g.teamB, target: g.target, pasoValue: g.pasoValue || state.pasoValue, rounds: g.rounds, lang: state.lang },
+            totalA: g.totalA, totalB: g.totalB, winner: g.winner,
+            date: new Date(g.date), t,
+          });
+          files.push(new File([blob], `domino-${g.id}.jpg`, { type: 'image/jpeg' }));
+        }
+        if (navigator.canShare && navigator.canShare({ files })) {
+          await navigator.share({
+            files,
+            title: 'Dominó - Exportación',
+            text: `${files.length} juegos`,
+          });
+        } else if (navigator.canShare && files.length > 0 && navigator.canShare({ files: [files[0]] })) {
+          // Fallback: share first only
+          await navigator.share({ files: [files[0]] });
+        } else {
+          // Download each
+          for (const f of files) {
+            const url = URL.createObjectURL(f);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = f.name;
+            a.click();
+            URL.revokeObjectURL(url);
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+      }
+      onClose();
+    } catch (err) {
+      if (err.name !== 'AbortError') alert(t.share_failed);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: 'white' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold" style={{ fontFamily: '"Bebas Neue", sans-serif', color: C.blue, letterSpacing: '0.05em' }}>
+            {t.export_games}
+          </h3>
+          <button onClick={onClose} className="p-1"><X size={18} /></button>
+        </div>
+
+        {step === 'format' && (
+          <div>
+            <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>{t.export_format}</p>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => { setFormat('csv'); setStep('filter'); }} className="py-3 rounded-lg font-bold active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
+                <FileText size={14} style={{ display: 'inline', marginRight: 6 }} />
+                {t.csv_format}
+              </button>
+              <button onClick={() => { setFormat('jpg'); setStep('filter'); }} className="py-3 rounded-lg font-bold active:scale-95 transition" style={{ background: 'white', color: C.blue, border: `2px solid ${C.blue}` }}>
+                <Share2 size={14} style={{ display: 'inline', marginRight: 6 }} />
+                {t.jpg_format}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'filter' && (
+          <div>
+            <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>{t.export_filter}</p>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => { setFilter('all'); setStep('confirm'); }} className="py-2.5 rounded-lg font-bold active:scale-95 transition" style={{ background: C.blue, color: 'white' }}>
+                {t.export_all} ({history.length})
+              </button>
+              <button onClick={() => { setFilter('last7'); setStep('confirm'); }} className="py-2.5 rounded-lg font-semibold active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
+                {t.export_last_7}
+              </button>
+              <button onClick={() => { setFilter('last30'); setStep('confirm'); }} className="py-2.5 rounded-lg font-semibold active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
+                {t.export_last_30}
+              </button>
+              {allTeamNames.length > 0 && (
+                <button onClick={() => { setFilter('team'); setStep('team'); }} className="py-2.5 rounded-lg font-semibold active:scale-95 transition" style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}>
+                  {t.export_by_team} →
+                </button>
+              )}
+            </div>
+            <button onClick={() => setStep('format')} className="mt-3 w-full py-2 rounded text-xs" style={{ color: C.textLight }}>
+              ← {t.back}
+            </button>
+          </div>
+        )}
+
+        {step === 'team' && (
+          <div>
+            <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>{t.pick_team}</p>
+            <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto">
+              {allTeamNames.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => { setTeamName(name); setStep('confirm'); }}
+                  className="py-2 rounded-lg font-semibold text-sm active:scale-95 transition text-left px-3"
+                  style={{ background: 'white', color: C.text, border: `1px solid ${C.border}` }}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setStep('filter')} className="mt-3 w-full py-2 rounded text-xs" style={{ color: C.textLight }}>
+              ← {t.back}
+            </button>
+          </div>
+        )}
+
+        {step === 'confirm' && (
+          <div>
+            <p className="text-sm mb-3" style={{ color: C.text }}>
+              <strong>{filterGames().length}</strong> {t.rounds_word === 'jugadas' ? 'juegos' : 'games'} · {format === 'csv' ? t.csv_format : t.jpg_format}
+              {filter === 'team' && teamName && ` · ${teamName}`}
+            </p>
+            <button
+              onClick={doExport}
+              disabled={busy}
+              className="w-full py-3 rounded-lg font-bold active:scale-95 transition disabled:opacity-60 flex items-center justify-center gap-2"
+              style={{ background: C.blue, color: 'white', fontFamily: '"Bebas Neue", sans-serif', letterSpacing: '0.05em' }}
+            >
+              <Share2 size={16} /> {busy ? t.sharing : t.share}
+            </button>
+            <button onClick={() => setStep('filter')} className="mt-2 w-full py-2 rounded text-xs" style={{ color: C.textLight }}>
+              ← {t.back}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatGamesAsCSV(games, t) {
+  // Header row
+  const headers = [
+    'Fecha', 'Equipo A', 'Jugadores A', 'Equipo B', 'Jugadores B',
+    'Total A', 'Total B', 'Ganador', 'Jugadas', 'Detalle',
+  ];
+  const lines = [headers.join(',')];
+  const esc = (v) => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  games.forEach((g) => {
+    const detail = g.rounds.map((r, i) => {
+      const a = r.a + (r.bonusA ? `(+${r.bonusA})` : '');
+      const b = r.b + (r.bonusB ? `(+${r.bonusB})` : '');
+      return `P${i+1}:${a}/${b}`;
+    }).join(' | ');
+    lines.push([
+      esc(formatUSDateTime(new Date(g.date))),
+      esc(g.teamA?.name),
+      esc([g.teamA?.p1, g.teamA?.p2].filter(Boolean).join(' & ')),
+      esc(g.teamB?.name),
+      esc([g.teamB?.p1, g.teamB?.p2].filter(Boolean).join(' & ')),
+      esc(g.totalA),
+      esc(g.totalB),
+      esc(g.winner || ''),
+      esc(g.rounds.length),
+      esc(detail),
+    ].join(','));
+  });
+  return lines.join('\n');
 }
 
 function HistoryCard({ game, t, onDelete, onOpen }) {
@@ -1729,16 +2063,25 @@ function HistoryDetail({ game, t, state, onBack }) {
           <div className="col-span-2 truncate px-1">{game.teamA.name}</div>
           <div className="col-span-2 truncate px-1">{game.teamB.name}</div>
         </div>
-        {game.rounds.map((r, i) => (
-          <div key={i} className="items-center py-1.5 text-center"
-            style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', borderBottom: `1px solid ${C.border}`, background: 'white' }}>
-            <div className="text-xs" style={{ color: C.textLight }}>P{i + 1}</div>
-            <ScoreSlot value={r.a} color={C.red} showShoe={r.a === 0 && r.b > 0} />
-            <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-            <ScoreSlot value={r.b} color={C.blue} showShoe={r.b === 0 && r.a > 0} />
-            <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
-          </div>
-        ))}
+        {(() => {
+          let cumA = 0, cumB = 0;
+          return game.rounds.map((r, i) => {
+            cumA += r.a + (r.bonusA || 0);
+            cumB += r.b + (r.bonusB || 0);
+            const shoeA = cumA === 0 && cumB > 0;
+            const shoeB = cumB === 0 && cumA > 0;
+            return (
+              <div key={i} className="items-center py-1.5 text-center"
+                style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', borderBottom: `1px solid ${C.border}`, background: 'white' }}>
+                <div className="text-xs" style={{ color: C.textLight }}>P{i + 1}</div>
+                <ScoreSlot value={r.a} color={C.red} showShoe={shoeA} />
+                <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
+                <ScoreSlot value={r.b} color={C.blue} showShoe={shoeB} />
+                <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
+              </div>
+            );
+          });
+        })()}
         <div className="items-center py-2 text-center"
           style={{ display: 'grid', gridTemplateColumns: GRID_5_HIST, alignItems: 'center', background: C.blueDark, color: 'white' }}>
           <div className="text-[10px] font-bold tracking-wider" style={{ fontFamily: '"Bebas Neue", sans-serif' }}>{t.total}</div>
