@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.2.0';
-const BUILD_DATE = (typeof process !== 'undefined' && process.env && process.env.BUILD_DATE) || '';
+const APP_VERSION = '1.1.1';
+const BUILD_DATE = (process.env.BUILD_DATE || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
 // ==============================================
@@ -107,11 +107,12 @@ const STRINGS = {
     series_won: 'GANARON LA SERIE',
     pc_pending_hint: 'P.C. agregado',
     bonus_10: '+10',
-    bonus_pc: 'P.C.',
+    bonus_pc: 'CORRIDO',
     bonus_values: 'Valores de bonos',
     paso_corrido_value: 'Paso Corrido',
     bonus_10_value: 'Bono +10',
     beta: 'BETA',
+    set_score: 'SETS',
   },
   en: {
     new: 'New',
@@ -211,11 +212,12 @@ const STRINGS = {
     series_won: 'WON THE SERIES',
     pc_pending_hint: 'P.C. added',
     bonus_10: '+10',
-    bonus_pc: 'P.C.',
+    bonus_pc: 'CORRIDO',
     bonus_values: 'Bonus values',
     paso_corrido_value: 'Paso Corrido',
     bonus_10_value: 'Bonus +10',
     beta: 'BETA',
+    set_score: 'SETS',
   },
 };
 
@@ -394,18 +396,39 @@ export default function DominoScorekeeper() {
     setPendingTenB(0);
   };
 
-  // Bonus button always opens the team picker. Multiple bonuses = multiple taps.
+  // Bonus button always opens the team picker
   const handleBonusTap = (type) => setPickingBonusType(type);
 
+  // Picking a team applies the bonus to the LAST committed round if one exists,
+  // otherwise stages it as pending for the next AÑADIR.
   const pickBonusTeam = (team) => {
-    if (pickingBonusType === 'paso') {
-      if (team === 'a') setPendingPasoA((c) => c + 1);
-      else setPendingPasoB((c) => c + 1);
-    } else if (pickingBonusType === 'ten') {
-      if (team === 'a') setPendingTenA((c) => c + 1);
-      else setPendingTenB((c) => c + 1);
-    }
+    const type = pickingBonusType;
     setPickingBonusType(null);
+    if (state.rounds.length > 0) {
+      // Apply to existing last round
+      const bonusUnit = type === 'paso' ? state.pasoValue : state.bonus10Value;
+      const countKey = type === 'paso'
+        ? (team === 'a' ? 'bonusCountA' : 'bonusCountB')
+        : (team === 'a' ? 'tenCountA' : 'tenCountB');
+      const bonusKey = team === 'a' ? 'bonusA' : 'bonusB';
+      setState((s) => {
+        const rounds = [...s.rounds];
+        const last = { ...rounds[rounds.length - 1] };
+        last[countKey] = (last[countKey] || 0) + 1;
+        last[bonusKey] = (last[bonusKey] || 0) + bonusUnit;
+        rounds[rounds.length - 1] = last;
+        return { ...s, rounds };
+      });
+    } else {
+      // No rounds yet — stage for the upcoming round
+      if (type === 'paso') {
+        if (team === 'a') setPendingPasoA((c) => c + 1);
+        else setPendingPasoB((c) => c + 1);
+      } else {
+        if (team === 'a') setPendingTenA((c) => c + 1);
+        else setPendingTenB((c) => c + 1);
+      }
+    }
   };
 
   const clearPendingBonusForTeam = (team) => {
@@ -593,7 +616,19 @@ export default function DominoScorekeeper() {
       </header>
 
       {view === 'game' && (
-        <div className="max-w-md mx-auto px-3 pt-4 mt-1 grid grid-cols-2 gap-2">
+        <div className="max-w-md mx-auto px-3 pt-3 mt-1">
+          <TeamRow
+            t={t}
+            state={state}
+            editingField={editingField}
+            setEditingField={setEditingField}
+            updateTeam={updateTeam}
+          />
+        </div>
+      )}
+
+      {view === 'game' && (
+        <div className="max-w-md mx-auto px-3 pt-2 grid grid-cols-2 gap-2">
           <button
             onClick={saveCurrentGame}
             className="flex items-center justify-center gap-2 py-3 rounded-lg font-bold active:scale-95 transition"
@@ -816,24 +851,11 @@ function GameView(p) {
         return null;
       })()}
 
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <TeamColumn team={state.teamA} teamKey="teamA" accent={C.red} editingField={editingField} setEditingField={setEditingField} updateTeam={updateTeam} sets={state.setsA} bestOf={state.bestOf} />
-        <TeamColumn team={state.teamB} teamKey="teamB" accent={C.blue} editingField={editingField} setEditingField={setEditingField} updateTeam={updateTeam} sets={state.setsB} bestOf={state.bestOf} />
-      </div>
+
 
       <div className="grid grid-cols-2 gap-2 mb-2">
-        <ScoreBox
-          value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red}
-          pendingPaso={pendingPasoA} pendingTen={pendingTenA}
-          pasoValue={state.pasoValue} tenValue={state.bonus10Value}
-          onClearBonus={() => clearPendingBonusForTeam('a')} t={t}
-        />
-        <ScoreBox
-          value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue}
-          pendingPaso={pendingPasoB} pendingTen={pendingTenB}
-          pasoValue={state.pasoValue} tenValue={state.bonus10Value}
-          onClearBonus={() => clearPendingBonusForTeam('b')} t={t}
-        />
+        <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} />
+        <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} />
       </div>
 
       <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
@@ -1011,6 +1033,92 @@ function BonusSlot({ value, count }) {
   );
 }
 
+function TeamRow({ t, state, editingField, setEditingField, updateTeam }) {
+  const setsToWin = Math.ceil(state.bestOf / 2);
+  const showSetsToWin = state.bestOf > 1;
+  return (
+    <div className="grid items-center gap-2" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+      <CompactTeamCard
+        team={state.teamA}
+        teamKey="teamA"
+        accent={C.red}
+        editingField={editingField}
+        setEditingField={setEditingField}
+        updateTeam={updateTeam}
+        align="right"
+      />
+      <div className="flex flex-col items-center" style={{ minWidth: '64px' }}>
+        <span style={{ fontSize: '9px', color: C.textLight, fontWeight: 700, letterSpacing: '0.15em' }}>
+          {t.set_score}
+        </span>
+        <div className="flex items-baseline gap-1" style={{ fontFamily: '"Bebas Neue", sans-serif' }}>
+          <span style={{ fontSize: '22px', color: C.red, fontWeight: 700 }}>{state.setsA}</span>
+          <span style={{ fontSize: '16px', color: C.textLight }}>-</span>
+          <span style={{ fontSize: '22px', color: C.blue, fontWeight: 700 }}>{state.setsB}</span>
+        </div>
+        {showSetsToWin && (
+          <span style={{ fontSize: '9px', color: C.textLight, marginTop: '-2px' }}>
+            a {setsToWin}
+          </span>
+        )}
+      </div>
+      <CompactTeamCard
+        team={state.teamB}
+        teamKey="teamB"
+        accent={C.blue}
+        editingField={editingField}
+        setEditingField={setEditingField}
+        updateTeam={updateTeam}
+        align="left"
+      />
+    </div>
+  );
+}
+
+function CompactTeamCard({ team, teamKey, accent, editingField, setEditingField, updateTeam, align }) {
+  const fieldKey = (f) => `${teamKey}.${f}`;
+  return (
+    <div
+      className="px-2 py-1 rounded-lg"
+      style={{
+        background: 'white',
+        border: `2px solid ${accent}`,
+        textAlign: align === 'right' ? 'right' : 'left',
+      }}
+    >
+      <EditableLine
+        value={team.name}
+        editing={editingField === fieldKey('name')}
+        onEdit={() => setEditingField(fieldKey('name'))}
+        onSave={() => setEditingField(null)}
+        onChange={(v) => updateTeam(teamKey, { name: v })}
+        size="lg"
+        accent={accent}
+      />
+      <div style={{ fontSize: '10px', color: C.textLight, marginTop: '1px' }}>
+        <EditableLine
+          value={team.p1}
+          editing={editingField === fieldKey('p1')}
+          onEdit={() => setEditingField(fieldKey('p1'))}
+          onSave={() => setEditingField(null)}
+          onChange={(v) => updateTeam(teamKey, { p1: v })}
+          size="sm"
+          accent={accent}
+        />
+        <EditableLine
+          value={team.p2}
+          editing={editingField === fieldKey('p2')}
+          onEdit={() => setEditingField(fieldKey('p2'))}
+          onSave={() => setEditingField(null)}
+          onChange={(v) => updateTeam(teamKey, { p2: v })}
+          size="sm"
+          accent={accent}
+        />
+      </div>
+    </div>
+  );
+}
+
 function TeamColumn({ team, teamKey, accent, editingField, setEditingField, updateTeam, sets, bestOf }) {
   const fieldKey = (f) => `${teamKey}.${f}`;
   const showSets = bestOf > 1;
@@ -1093,52 +1201,20 @@ function EditableLine({ value, editing, onEdit, onSave, onChange, size, accent }
   );
 }
 
-function ScoreBox({ value, onChange, onEnter, accent, pendingPaso, pendingTen, pasoValue, tenValue, onClearBonus, t }) {
-  const hasBonus = pendingPaso > 0 || pendingTen > 0;
-  const tenTotal = pendingTen * tenValue;
-  const pasoTotal = pendingPaso * pasoValue;
-  const parts = [];
-  if (value && value !== '0') parts.push({ text: value, color: accent });
-  if (pendingTen > 0) parts.push({ text: `+${tenTotal}${pendingTen > 1 ? `×${pendingTen}` : ''}`, color: C.green });
-  if (pendingPaso > 0) parts.push({ text: `+${pasoTotal}${pendingPaso > 1 ? `×${pendingPaso}` : ''}`, color: C.amber });
+function ScoreBox({ value, onChange, onEnter, accent }) {
   return (
-    <div className="relative">
-      <input
-        type="number" inputMode="numeric" placeholder={hasBonus ? '' : '0'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onEnter()}
-        className="w-full rounded-lg px-2 text-center font-bold outline-none transition"
-        style={{
-          border: `2px solid ${hasBonus ? C.amber : value ? accent : C.borderDark}`,
-          color: accent, background: 'white', fontFamily: '"Bebas Neue", sans-serif',
-          fontSize: '32px', height: '64px',
-          opacity: hasBonus ? 0 : 1,
-        }}
-      />
-      {hasBonus && (
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none px-2"
-          style={{ fontFamily: '"Bebas Neue", sans-serif', flexWrap: 'wrap', gap: '4px' }}
-        >
-          {parts.map((part, i) => (
-            <span key={i} style={{ color: part.color, fontSize: parts.length > 2 ? '17px' : '22px', fontWeight: 'bold' }}>
-              {part.text}{i < parts.length - 1 ? ',' : ''}
-            </span>
-          ))}
-        </div>
-      )}
-      {hasBonus && (
-        <button
-          onClick={onClearBonus}
-          className="absolute top-0.5 right-0.5 active:scale-90 rounded-full"
-          style={{ color: C.textLight, padding: '2px', background: 'white' }}
-          aria-label="quitar bonos"
-        >
-          <X size={12} />
-        </button>
-      )}
-    </div>
+    <input
+      type="number" inputMode="numeric" placeholder="0"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => e.key === 'Enter' && onEnter()}
+      className="w-full rounded-lg px-2 text-center font-bold outline-none transition"
+      style={{
+        border: `2px solid ${value ? accent : C.borderDark}`,
+        color: accent, background: 'white', fontFamily: '"Bebas Neue", sans-serif',
+        fontSize: '32px', height: '64px',
+      }}
+    />
   );
 }
 
