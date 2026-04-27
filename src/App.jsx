@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, X, RotateCcw, Settings, Trophy, History, Pencil, Check, ChevronLeft, Trash2, Share2, Info, Mail, Edit3, FileText, Save } from 'lucide-react';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const DEFAULT_FEEDBACK_EMAIL = 'jsrd12@gmail.com';
 const DEFAULT_GITHUB_REPO = 'https://github.com/jsrd12-apm/domino-scorekeeper';
@@ -835,14 +835,9 @@ function GameView(p) {
 
 
 
-      <div className="grid grid-cols-2 gap-2 mb-1">
+      <div className="grid grid-cols-2 gap-2 mb-2">
         <ScoreBox value={scoreA} onChange={setScoreA} onEnter={addRound} accent={C.red} />
         <ScoreBox value={scoreB} onChange={setScoreB} onEnter={addRound} accent={C.blue} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 mb-2" style={{ minHeight: '20px' }}>
-        <PendingBonus paso={pendingPasoA} ten={pendingTenA} pasoValue={state.pasoValue} tenValue={state.bonus10Value} onClear={() => clearPendingBonusForTeam('a')} />
-        <PendingBonus paso={pendingPasoB} ten={pendingTenB} pasoValue={state.pasoValue} tenValue={state.bonus10Value} onClear={() => clearPendingBonusForTeam('b')} />
       </div>
 
       <div className="gap-1.5 mb-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
@@ -940,24 +935,60 @@ function GameView(p) {
         </div>
 
         <div ref={roundsScrollRef} className="overflow-y-auto" style={{ maxHeight: '32vh', background: 'white' }}>
-          {state.rounds.length === 0 ? (
+          {state.rounds.length === 0 && !(pendingPasoA + pendingPasoB + pendingTenA + pendingTenB) ? (
             <div className="text-center py-6 italic text-sm" style={{ color: C.textLight }}>{t.no_rounds}</div>
           ) : (
-            state.rounds.map((r, i) => (
-              <button
-                key={i}
-                onClick={() => setEditingRound(i)}
-                className="w-full items-center py-1.5 text-center active:bg-blue-50 transition"
-                style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
-              >
-                <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
-                <ScoreSlot value={r.a} color={C.red} showShoe={r.a === 0 && r.b > 0} />
-                <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
-                <ScoreSlot value={r.b} color={C.blue} showShoe={r.b === 0 && r.a > 0} />
-                <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
-                <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
-              </button>
-            ))
+            <>
+              {state.rounds.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => setEditingRound(i)}
+                  className="w-full items-center py-1.5 text-center active:bg-blue-50 transition"
+                  style={{ display: 'grid', gridTemplateColumns: GRID_5, alignItems: 'center', borderBottom: `1px solid ${C.border}` }}
+                >
+                  <div className="text-xs font-semibold" style={{ color: C.textLight }}>P{i + 1}</div>
+                  <ScoreSlot value={r.a} color={C.red} showShoe={r.a === 0 && r.b > 0} />
+                  <BonusSlot value={r.bonusA || 0} count={r.bonusCountA || 0} />
+                  <ScoreSlot value={r.b} color={C.blue} showShoe={r.b === 0 && r.a > 0} />
+                  <BonusSlot value={r.bonusB || 0} count={r.bonusCountB || 0} />
+                  <Edit3 size={12} style={{ color: C.textLight, opacity: 0.4, margin: '0 auto' }} />
+                </button>
+              ))}
+              {(pendingPasoA + pendingPasoB + pendingTenA + pendingTenB) > 0 && (
+                <div
+                  className="w-full items-center py-1.5 text-center"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: GRID_5,
+                    alignItems: 'center',
+                    borderTop: `2px dashed ${C.amber}`,
+                    background: '#fffbeb',
+                  }}
+                >
+                  <div className="text-xs font-semibold" style={{ color: C.amber }}>
+                    P{state.rounds.length + 1}
+                  </div>
+                  <div className="text-lg font-bold" style={{ color: C.textLight, fontFamily: '"Bebas Neue", sans-serif' }}>?</div>
+                  <BonusSlot
+                    value={pendingPasoA * state.pasoValue + pendingTenA * state.bonus10Value}
+                    count={pendingPasoA}
+                  />
+                  <div className="text-lg font-bold" style={{ color: C.textLight, fontFamily: '"Bebas Neue", sans-serif' }}>?</div>
+                  <BonusSlot
+                    value={pendingPasoB * state.pasoValue + pendingTenB * state.bonus10Value}
+                    count={pendingPasoB}
+                  />
+                  <button
+                    onClick={clearAllPending}
+                    className="active:scale-90"
+                    style={{ color: C.amber, margin: '0 auto' }}
+                    aria-label="quitar todos"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
