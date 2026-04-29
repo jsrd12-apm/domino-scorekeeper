@@ -17,7 +17,7 @@ import {
 } from './scoring.js';
 
 // ==== Edit these defaults before deploying ====
-const APP_VERSION = '0.0.24';
+const APP_VERSION = '0.0.25';
 const BUILD_DATE = (process.env.BUILD_DATE || '');
 const BUILT_CACHE_VERSION = (process.env.CACHE_VERSION || '');
 
@@ -72,7 +72,7 @@ const STRINGS = {
     feedback_intro: 'Envía tus ideas para mejorar la app:',
     about: 'Acerca de',
     about_intro: 'Tanteador de dominó dominicano. Sin anuncios. Funciona sin internet.',
-    about_full: 'Esta aplicación fue creada para contribuir y fomentar el juego de dominó de forma simple. No colectamos ninguna información. Los juegos permanecen en tu celular y solo recibe información del internet si el usuario desea actualizar.\n\nCreado por José Rodríguez con contribuciones del visionario Daniel Rodríguez, el arquitecto de la idea original, y mis queridos hermanos Marcos y Ramón.\n\nSugerencias para mejorar son bienvenidas. Añadiré una sección para nombrar los contribuyentes más adelante. ¡Disfruten!',
+    about_full: 'Esta aplicación fue creada para contribuir y fomentar el juego de dominó de forma simple. No colectamos información personal y no usamos cookies. Los juegos permanecen en tu celular. Sí contamos visitas anónimas para saber cuántas personas usan la app — sin nombres, sin rastreo, sin perfiles.\n\nCreado por José Rodríguez con contribuciones del visionario Daniel Rodríguez, el arquitecto de la idea original, y mis queridos hermanos Marcos y Ramón.\n\nSugerencias para mejorar son bienvenidas. Añadiré una sección para nombrar los contribuyentes más adelante. ¡Disfruten!',
     how_scoring: 'Cómo funciona el puntaje',
     rule_teams: 'Cada equipo es de 2 jugadores.',
     rule_target: 'Se gana al llegar a la meta (por defecto 200, configurable en Ajustes).',
@@ -259,7 +259,7 @@ const STRINGS = {
     feedback_intro: 'Share your ideas to improve the app:',
     about: 'About',
     about_intro: 'Dominican domino scorekeeper. No ads. Works offline.',
-    about_full: 'This app was created to contribute to and encourage the game of dominoes in a simple way. We don\'t collect any information. Games stay on your phone and the app only contacts the internet if you choose to check for updates.\n\nCreated by José Rodríguez with contributions from the visionary Daniel Rodríguez, the architect of the original idea, and my dear brothers Marcos and Ramón.\n\nSuggestions for improvement are welcome. I\'ll add a contributors section later. Enjoy!',
+    about_full: 'This app was created to contribute to and encourage the game of dominoes in a simple way. We don\'t collect personal information and don\'t use cookies. Games stay on your phone. We do count anonymous visits to know how many people use the app — no names, no tracking, no profiles.\n\nCreated by José Rodríguez with contributions from the visionary Daniel Rodríguez, the architect of the original idea, and my dear brothers Marcos and Ramón.\n\nSuggestions for improvement are welcome. I\'ll add a contributors section later. Enjoy!',
     how_scoring: 'How scoring works',
     rule_teams: 'Each team has 2 players.',
     rule_target: 'First to reach the target wins (default 200, set in Settings).',
